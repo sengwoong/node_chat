@@ -1,0 +1,48 @@
+# 기본적으로 모든 파일 무시
+/*
+
+# publisher와 subscriber 디렉토리만 추적
+!/publisher/
+!/subscriber/
+
+# 그러나 node_modules는 무시
+**/node_modules/
+
+# 환경 설정 파일 무시
+**/.env
+**/.env.local
+**/.env.development.local
+**/.env.test.local
+**/.env.production.local
+
+# 로그 파일 무시
+**/*.log
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+
+# 기타 무시할 파일
+**/.DS_Store
+**/.vscode/
+**/.idea/
+
+# 런타임 데이터
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# 디렉토리
+dist/
+build/
+coverage/
+
+# 미스 파일
+.swp
+*.swo
+.directory
+Thumbs.db
+
+# 패키지 파일 (lock 파일은 유지)
+# package-lock.json
+# yarn.lock 

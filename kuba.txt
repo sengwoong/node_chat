@@ -1,0 +1,41 @@
+# publisher-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: publisher
+spec:
+  replicas: 3  # 필요에 따라 조절
+  selector:
+    matchLabels:
+      app: publisher
+  template:
+    metadata:
+      labels:
+        app: publisher
+    spec:
+      containers:
+      - name: publisher
+        image: chat-publisher:latest
+        ports:
+        - containerPort: 1010
+        env:
+        - name: KAFKA_BROKERS
+          value: "kafka-service:9092"
+
+         # 채팅 메시지 저장 흐름
+          #[사용자] → [Publisher Pods] → [Kafka] → [Subscriber Pods] → [MySQL]
+          #               ↑                             ↑
+          #               └──── [쿠버네티스로 확장] ────┘
+
+
+          # 채팅 메시지 전송 흐름
+          # 1. 사용자가 채팅 메시지를 입력하고 전송
+          # 2. Publisher Pods가 메시지를 Kafka에 전송
+          # 3. Kafka가 메시지를 Subscriber Pods에 전송
+
+          # 채팅 메시지 저장 흐름
+          # 1. Subscriber Pods가 Kafka에서 메시지를 수신
+          # 2. Subscriber Pods가 MySQL에 메시지를 저장
+          # 3. 사용자가 채팅 메시지를 조회
+          
+          
