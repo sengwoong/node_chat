@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>스트림 시청</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    #videoContainer {
+      margin: 20px 0;
+    }
+    #streamVideo {
+      width: 640px;
+      height: 480px;
+      border: 1px solid #ccc;
+      background-color: #f0f0f0;
+    }
+    .stream-info {
+      margin-top: 15px;
+      padding: 10px;
+      background-color: #f5f5f5;
+      border-radius: 4px;
+    }
+    h1 {
+      color: #333;
+    }
+    .error-message {
+      color: #e74c3c;
+      font-weight: bold;
+      margin-top: 10px;
+      padding: 10px;
+      background-color: #ffeaea;
+      border-radius: 4px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>실시간 스트림 시청</h1>
+  
+  <div id="videoContainer">
+    <video id="streamVideo" controls></video>
+  </div>
+  
+  <div class="stream-info">
+    <p>스트림 ID: <span id="streamId">로딩 중...</span></p>
+    <p>시작 시간: <span id="startTime">로딩 중...</span></p>
+  </div>
+  
+  <div id="errorMessage" class="error-message"></div>
+  
+  <script>
+    // 서버 베이스 URL 설정 (포트 포함)
+    const serverBaseUrl = 'http://localhost:8080'; // 서버가 실행 중인 포트로 설정
+    
+    const videoElement = document.getElementById('streamVideo');
+    const streamIdElement = document.getElementById('streamId');
+    const startTimeElement = document.getElementById('startTime');
+    const errorMessageElement = document.getElementById('errorMessage');
+    
+    // 오류 표시 함수
+    function showError(message) {
+      errorMessageElement.textContent = message;
+      errorMessageElement.style.display = 'block';
+      console.error(message);
+    }
+    
+    // Extract stream ID from URL
+    const streamId = window.location.pathname.split('/').pop();
+    streamIdElement.textContent = streamId;
+    
+    // 스트림 URL 생성
+    const streamUrl = `${serverBaseUrl}/stream/${streamId}/playlist.m3u8`;
+    console.log('Attempting to load stream from:', streamUrl);
+    
+    // Function to format date
+    function formatDate(dateString) {
+      const date = new Date(dateString);
+      return date.toLocaleString();
+    }
+    
+    // Function to get stream info
+    async function getStreamInfo() {
+      try {
+        const response = await fetch(`${serverBaseUrl}/streams`);
+        
+        if (!response.ok) {
+          throw new Error(`서버 응답 오류: ${response.status} ${response.statusText}`);
+        }
+        
+        const streams = await response.json();
+        
+        const currentStream = streams.find(stream => stream.id === streamId);
+        
+        if (currentStream) {
+          startTimeElement.textContent = formatDate(currentStream.startTime);
+        } else {
+          startTimeElement.textContent = '정보 없음';
+          showError('이 스트림은 더 이상 활성화되어 있지 않습니다.');
+        }
+      } catch (err) {
+        console.error('Error fetching stream info:', err);
+        startTimeElement.textContent = '정보를 가져올 수 없습니다';
+        showError(`스트림 정보를 가져오는 중 오류가 발생했습니다: ${err.message}`);
+      }
+    }
+    
+    // Initialize HLS
+    function initializePlayer() {
+      if (Hls.isSupported()) {
+        const hls = new Hls({
+          debug: true,
+          xhrSetup: function(xhr, url) {
+            // 로깅 추가
+            console.log('Loading URL:', url);
+          }
+        });
+        
+        hls.loadSource(streamUrl);
+        hls.attachMedia(videoElement);
+        
+        hls.on(Hls.Events.MANIFEST_PARSED, function() {
+          console.log('Manifest parsed successfully');
+          videoElement.play();
+        });
+        
+        hls.on(Hls.Events.ERROR, function(event, data) {
+          console.error('HLS error:', data.type, data.details);
+          
+          if (data.fatal) {
+            console.error('Fatal error:', data.type, data.details);
+            showError(`스트림 로드 오류: ${data.details}`);
+            
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+              setTimeout(() => {
+                console.log('Attempting to reconnect...');
+                hls.destroy();
+                initializePlayer();
+              }, 3000);
+            }
+          }
+        });
+      } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+        // For Safari
+        videoElement.src = streamUrl;
+        videoElement.addEventListener('loadedmetadata', function() {
+          videoElement.play();
+        });
+        
+        videoElement.addEventListener('error', function() {
+          showError('비디오 로드 오류: 스트림을 재생할 수 없습니다.');
+        });
+      } else {
+        showError('이 브라우저는 HLS 스트리밍을 지원하지 않습니다.');
+      }
+    }
+    
+    // Initialize
+    getStreamInfo();
+    initializePlayer();
+    
+    // Refresh stream info every 30 seconds
+    setInterval(getStreamInfo, 30000);
+  </script>
+</body>
+</html> 
