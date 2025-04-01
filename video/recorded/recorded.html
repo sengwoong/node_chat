@@ -132,6 +132,56 @@
       font-size: 0.85em;
       color: #666;
     }
+    .upload-section {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #f0f8ff;
+      border-radius: 4px;
+    }
+    .file-input-container {
+      position: relative;
+      margin-bottom: 15px;
+    }
+    .file-input {
+      width: 100%;
+      padding: 8px;
+      border: 1px dashed #aaa;
+      border-radius: 4px;
+      background-color: #f9f9f9;
+      cursor: pointer;
+    }
+    .upload-btn {
+      padding: 8px 16px;
+      background-color: #2196F3;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .upload-btn:hover {
+      background-color: #0b7dda;
+    }
+    .upload-btn:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    .drop-zone {
+      border: 2px dashed #ccc;
+      border-radius: 5px;
+      padding: 25px;
+      text-align: center;
+      margin: 15px 0;
+      background-color: #f9f9f9;
+      transition: all 0.3s;
+    }
+    .drop-zone.active {
+      border-color: #2196F3;
+      background-color: #e3f2fd;
+    }
+    .drop-zone-text {
+      color: #666;
+      margin-bottom: 10px;
+    }
   </style>
 </head>
 <body>
@@ -188,6 +238,20 @@
     <div id="progressFill" class="progress-fill"></div>
   </div>
   
+  <div class="upload-section">
+    <h2>영상 파일 업로드</h2>
+    <div class="drop-zone" id="dropZone">
+      <div class="drop-zone-text">파일을 여기에 끌어다 놓거나 클릭하여 선택하세요</div>
+      <div class="file-input-container">
+        <input type="file" id="fileInput" class="file-input" accept="video/mp4,video/webm">
+      </div>
+    </div>
+    <div>
+      <button id="uploadButton" class="upload-btn" disabled>업로드</button>
+      <span id="uploadStatus"></span>
+    </div>
+  </div>
+  
   <div class="recordings-section">
     <h2>녹화된 영상 목록</h2>
     <button id="refreshButton" class="refresh-btn">목록 새로고침</button>
@@ -215,10 +279,17 @@
     let recordingsList = document.getElementById("recordingsList");
     let refreshButton = document.getElementById("refreshButton");
     
+    // 파일 업로드 관련 요소
+    let fileInput = document.getElementById("fileInput");
+    let uploadButton = document.getElementById("uploadButton");
+    let uploadStatus = document.getElementById("uploadStatus");
+    let dropZone = document.getElementById("dropZone");
+    
     let mediaRecorder;
     let recordedChunks = [];
     let stream;
     let recordedBlob = null;
+    let selectedFile = null;
     
     // 페이지 로드 시 녹화 목록 로드
     window.addEventListener('load', loadRecordings);
@@ -568,6 +639,138 @@
           }
         }
       });
+    }
+    
+    // 파일 업로드 관련 이벤트 설정
+    fileInput.addEventListener('change', handleFileSelect);
+    uploadButton.addEventListener('click', uploadFile);
+    
+    // 드래그 앤 드롭 이벤트 설정
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('active');
+    });
+    
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('active');
+    });
+    
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('active');
+      
+      if (e.dataTransfer.files.length) {
+        fileInput.files = e.dataTransfer.files;
+        handleFileSelect(e);
+      }
+    });
+    
+    // 클릭으로도 파일 선택할 수 있도록
+    dropZone.addEventListener('click', () => {
+      fileInput.click();
+    });
+    
+    // 파일 선택 처리
+    function handleFileSelect(event) {
+      const files = event.target.files || event.dataTransfer.files;
+      
+      if (files.length === 0) {
+        uploadButton.disabled = true;
+        uploadStatus.textContent = '';
+        selectedFile = null;
+        return;
+      }
+      
+      const file = files[0];
+      
+      // 파일 유효성 검사
+      if (file.type !== 'video/mp4' && file.type !== 'video/webm') {
+        showError('MP4 또는 WebM 형식의 비디오 파일만 업로드 가능합니다.');
+        uploadButton.disabled = true;
+        selectedFile = null;
+        return;
+      }
+      
+      // 파일 크기 제한 (500MB)
+      if (file.size > 500 * 1024 * 1024) {
+        showError('파일 크기는 500MB를 초과할 수 없습니다.');
+        uploadButton.disabled = true;
+        selectedFile = null;
+        return;
+      }
+      
+      selectedFile = file;
+      uploadButton.disabled = false;
+      uploadStatus.textContent = `선택된 파일: ${file.name} (${formatFileSize(file.size)})`;
+      errorElement.style.display = 'none';
+    }
+    
+    // 파일 업로드 처리
+    async function uploadFile() {
+      if (!selectedFile) {
+        showError('업로드할 파일을 선택해주세요.');
+        return;
+      }
+      
+      // UI 상태 업데이트
+      uploadButton.disabled = true;
+      showProgress(true, 0);
+      uploadStatus.textContent = '업로드 중...';
+      
+      const formData = new FormData();
+      formData.append('video', selectedFile);
+      
+      try {
+        // XMLHttpRequest로 진행률 모니터링
+        const xhr = new XMLHttpRequest();
+        
+        xhr.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable) {
+            const percentComplete = Math.round((event.loaded / event.total) * 100);
+            showProgress(true, percentComplete);
+          }
+        });
+        
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+              const response = JSON.parse(xhr.responseText);
+              uploadStatus.textContent = response.message;
+              
+              // 파일 목록 새로고침
+              setTimeout(() => {
+                loadRecordings();
+                showProgress(false);
+                // 폼 초기화
+                fileInput.value = '';
+                selectedFile = null;
+              }, 1000);
+            } else {
+              let errorMsg = '업로드 중 오류가 발생했습니다.';
+              try {
+                const response = JSON.parse(xhr.responseText);
+                if (response.error) {
+                  errorMsg = response.error;
+                }
+              } catch (e) {
+                console.error('Response parsing error:', e);
+              }
+              showError(errorMsg);
+              showProgress(false);
+              uploadButton.disabled = false;
+            }
+          }
+        };
+        
+        xhr.open('POST', `${serverBaseUrl}/upload`, true);
+        xhr.send(formData);
+        
+      } catch (err) {
+        console.error('Upload error:', err);
+        showError('파일 업로드 중 오류가 발생했습니다: ' + err.message);
+        showProgress(false);
+        uploadButton.disabled = false;
+      }
     }
   </script>
 </body>

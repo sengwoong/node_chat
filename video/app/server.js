@@ -34,6 +34,36 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
+// 파일 직접 업로드를 위한 스토리지 설정
+const uploadStorage = multer.diskStorage({
+  destination: function(req, file, cb) {
+    cb(null, recordedDir);
+  },
+  filename: function(req, file, cb) {
+    // 원본 파일명 유지하되 중복 방지를 위한 UUID 추가
+    const originalName = file.originalname;
+    const fileExt = path.extname(originalName);
+    const fileName = path.basename(originalName, fileExt);
+    const now = new Date().toISOString().replace(/:/g, '-').replace(/\..+/, '');
+    cb(null, `${fileName}_${now}${fileExt}`);
+  }
+});
+
+const uploadHandler = multer({ 
+  storage: uploadStorage,
+  fileFilter: function(req, file, cb) {
+    // mp4와 webm 파일만 허용
+    if (file.mimetype === 'video/mp4' || file.mimetype === 'video/webm') {
+      cb(null, true);
+    } else {
+      cb(new Error('지원하지 않는 파일 형식입니다. mp4 또는 webm 파일만 업로드 가능합니다.'), false);
+    }
+  },
+  limits: {
+    fileSize: 1024 * 1024 * 500 // 500MB 제한
+  }
+});
+
 // Enable CORS with more explicit configuration
 app.use(cors({
   origin: '*', // Allow all origins
@@ -388,6 +418,33 @@ app.get('/recordings', (req, res) => {
 
 // Serve recorded videos
 app.use('/recordings', express.static(recordedDir));
+
+// Handle file upload request
+app.post('/upload', uploadHandler.single('video'), (req, res) => {
+  console.log('File upload request received:', req.file ? 'with file' : 'without file');
+  
+  if (!req.file) {
+    return res.status(400).json({ error: '파일이 업로드되지 않았습니다.' });
+  }
+
+  // 업로드된 파일 정보
+  const fileInfo = {
+    filename: req.file.filename,
+    originalname: req.file.originalname,
+    mimetype: req.file.mimetype,
+    size: req.file.size,
+    path: `/recordings/${req.file.filename}`
+  };
+  
+  console.log(`File uploaded: ${fileInfo.filename}`);
+  
+  // 성공 응답
+  res.status(200).json({
+    success: true,
+    message: '파일이 성공적으로 업로드되었습니다.',
+    file: fileInfo
+  });
+});
 
 // Handle 404 errors
 app.use((req, res, next) => {
