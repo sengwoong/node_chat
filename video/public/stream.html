@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>비디오 스트리밍 플레이어</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    h1 {
+      color: #333;
+    }
+    .container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .player-container {
+      flex: 2;
+      min-width: 640px;
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+    .video-list {
+      flex: 1;
+      min-width: 300px;
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      max-height: 600px;
+      overflow-y: auto;
+    }
+    #videoPlayer {
+      width: 100%;
+      border-radius: 4px;
+      background-color: #000;
+    }
+    .video-item {
+      padding: 12px;
+      margin-bottom: 10px;
+      border-radius: 4px;
+      background-color: #f9f9f9;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    .video-item:hover {
+      background-color: #e9e9e9;
+    }
+    .video-item.active {
+      background-color: #e1f5fe;
+    }
+    .video-title {
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    .video-info {
+      font-size: 0.8em;
+      color: #666;
+    }
+    .player-controls {
+      display: flex;
+      align-items: center;
+      margin-top: 15px;
+      gap: 10px;
+    }
+    .player-info {
+      margin-top: 15px;
+      padding: 10px;
+      background-color: #f0f0f0;
+      border-radius: 4px;
+    }
+    .quality-select {
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+    }
+    .back-btn {
+      display: inline-block;
+      padding: 10px 15px;
+      background-color: #4CAF50;
+      color: white;
+      text-decoration: none;
+      border-radius: 4px;
+      margin-bottom: 20px;
+    }
+    .back-btn:hover {
+      background-color: #45a049;
+    }
+    .loading {
+      text-align: center;
+      padding: 20px;
+      color: #666;
+    }
+    @media (max-width: 992px) {
+      .container {
+        flex-direction: column;
+      }
+      .player-container, .video-list {
+        min-width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>비디오 스트리밍 플레이어</h1>
+    <a href="/" class="back-btn">녹화 페이지로 돌아가기</a>
+  </header>
+
+  <div class="container">
+    <div class="player-container">
+      <video id="videoPlayer" controls autoplay></video>
+      
+      <div class="player-controls">
+        <select id="playbackRate" class="quality-select">
+          <option value="0.5">0.5x</option>
+          <option value="0.75">0.75x</option>
+          <option value="1" selected>1x (기본)</option>
+          <option value="1.25">1.25x</option>
+          <option value="1.5">1.5x</option>
+          <option value="1.75">1.75x</option>
+          <option value="2">2x</option>
+        </select>
+      </div>
+      
+      <div class="player-info">
+        <div id="currentVideo">선택된 비디오: 없음</div>
+        <div id="videoProgress">로딩 중...</div>
+        <div id="bufferInfo">버퍼링: 0%</div>
+      </div>
+    </div>
+    
+    <div class="video-list">
+      <h2>저장된 비디오 목록</h2>
+      <div id="videoListContainer">
+        <div class="loading">비디오 목록을 불러오는 중...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const videoPlayer = document.getElementById('videoPlayer');
+    const videoListContainer = document.getElementById('videoListContainer');
+    const currentVideoInfo = document.getElementById('currentVideo');
+    const videoProgress = document.getElementById('videoProgress');
+    const bufferInfo = document.getElementById('bufferInfo');
+    const playbackRateSelect = document.getElementById('playbackRate');
+    
+    // 서버 기본 URL
+    const serverBaseUrl = 'http://localhost:8080';
+    
+    // 현재 선택된 비디오 정보
+    let currentVideo = null;
+    
+    // 페이지 로드 시 비디오 목록 로드
+    document.addEventListener('DOMContentLoaded', () => {
+      loadVideoList();
+      
+      // URL에서 파일명 추출해서 자동 재생 (있는 경우)
+      const pathParts = window.location.pathname.split('/');
+      if (pathParts.length >= 3 && pathParts[1] === 'stream' && pathParts[2] === 'watch') {
+        const filename = decodeURIComponent(pathParts[3]);
+        if (filename) {
+          playVideo(filename);
+        }
+      }
+    });
+    
+    // 재생 속도 변경
+    playbackRateSelect.addEventListener('change', () => {
+      videoPlayer.playbackRate = parseFloat(playbackRateSelect.value);
+    });
+    
+    // 비디오 진행 상황 업데이트
+    videoPlayer.addEventListener('timeupdate', () => {
+      if (!isNaN(videoPlayer.duration)) {
+        const percent = Math.floor((videoPlayer.currentTime / videoPlayer.duration) * 100);
+        videoProgress.textContent = `재생 진행: ${formatTime(videoPlayer.currentTime)} / ${formatTime(videoPlayer.duration)} (${percent}%)`;
+      }
+    });
+    
+    // 버퍼링 정보 업데이트
+    videoPlayer.addEventListener('progress', () => {
+      if (videoPlayer.buffered.length > 0) {
+        const bufferedEnd = videoPlayer.buffered.end(videoPlayer.buffered.length - 1);
+        const duration = videoPlayer.duration;
+        if (duration > 0) {
+          const percent = Math.floor((bufferedEnd / duration) * 100);
+          bufferInfo.textContent = `버퍼링: ${percent}%`;
+        }
+      }
+    });
+    
+    // 비디오 목록 로드
+    async function loadVideoList() {
+      try {
+        const response = await fetch(`${serverBaseUrl}/stream/videos`);
+        
+        if (!response.ok) {
+          throw new Error('서버 응답 오류');
+        }
+        
+        const videos = await response.json();
+        
+        if (videos.length === 0) {
+          videoListContainer.innerHTML = '<div class="video-item">저장된 비디오가 없습니다.</div>';
+          return;
+        }
+        
+        videoListContainer.innerHTML = videos.map(video => {
+          const created = new Date(video.created).toLocaleString();
+          const size = formatFileSize(video.size);
+          const type = video.type === 'video/mp4' ? 'MP4' : 'WebM';
+          
+          return `
+            <div class="video-item" data-filename="${video.name}" onclick="playVideo('${video.name}')">
+              <div class="video-title">${video.name}</div>
+              <div class="video-info">
+                타입: ${type} | 크기: ${size}<br>
+                생성: ${created}
+              </div>
+            </div>
+          `;
+        }).join('');
+        
+      } catch (err) {
+        console.error('비디오 목록 로드 오류:', err);
+        videoListContainer.innerHTML = '<div class="video-item">비디오 목록을 불러오는데 실패했습니다.</div>';
+      }
+    }
+    
+    // 비디오 재생
+    function playVideo(filename) {
+      // 현재 재생중인 비디오 표시 업데이트
+      const videoItems = document.querySelectorAll('.video-item');
+      videoItems.forEach(item => {
+        if (item.dataset.filename === filename) {
+          item.classList.add('active');
+        } else {
+          item.classList.remove('active');
+        }
+      });
+      
+      // 비디오 소스 설정 및 재생
+      videoPlayer.src = `${serverBaseUrl}/stream/video/${encodeURIComponent(filename)}`;
+      videoPlayer.load();
+      videoPlayer.play();
+      
+      // 현재 비디오 정보 업데이트
+      currentVideo = filename;
+      currentVideoInfo.textContent = `선택된 비디오: ${filename}`;
+      
+      // URL 업데이트 (히스토리 변경 없이)
+      window.history.replaceState(null, '', `/stream/watch/${encodeURIComponent(filename)}`);
+    }
+    
+    // 파일 크기 포맷팅
+    function formatFileSize(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
+    // 시간 포맷팅 (초 -> MM:SS)
+    function formatTime(seconds) {
+      seconds = Math.floor(seconds);
+      const minutes = Math.floor(seconds / 60);
+      seconds = seconds % 60;
+      
+      return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+  </script>
+</body>
+</html> 
