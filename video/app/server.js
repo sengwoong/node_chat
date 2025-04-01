@@ -52,18 +52,18 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 // Route to serve the screen recording page
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/index.html'));
+  res.sendFile(path.join(__dirname, '../recorded/recorded.html'));
 });
 
 // 스트림 관련 라우트 (stream.js에서 통합)
 // 스트림 플레이어 페이지
 app.get('/stream', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/stream.html'));
+  res.sendFile(path.join(__dirname, '../stream.html/stream.html'));
 });
 
 // 특정 영상 시청 페이지
 app.get('/stream/watch/:filename', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/stream.html'));
+  res.sendFile(path.join(__dirname, '../stream.html/stream.html'));
 });
 
 // 모든 비디오 파일 목록 가져오기
