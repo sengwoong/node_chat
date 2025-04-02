@@ -1,191 +1,161 @@
 const fs = require('fs');
 const path = require('path');
-const videoRepository = require('../repositories/videoRepository');
+const VideoRepository = require('../repositories/videoRepository');
 
 class VideoController {
-  // Get all recorded videos
+  constructor() {
+    this.videoRepository = new VideoRepository();
+    
+    // Bind all methods to this instance
+    this.getAllVideos = this.getAllVideos.bind(this);
+    this.convertVideo = this.convertVideo.bind(this);
+    this.saveWebm = this.saveWebm.bind(this);
+    this.uploadVideo = this.uploadVideo.bind(this);
+    this.streamVideo = this.streamVideo.bind(this);
+    this.getUserId = this.getUserId.bind(this);
+  }
+
+  // Helper method to get userId from request
+  getUserId(req) {
+    // First try to get from userIdFromPath (set by router)
+    const userIdFromPath = req.userIdFromPath;
+    if (userIdFromPath) {
+      console.log(`[VideoController] Using userIdFromPath: ${userIdFromPath}`);
+      return userIdFromPath;
+    }
+    
+    // If not found, try to extract from baseUrl
+    if (req.baseUrl) {
+      const userId = req.baseUrl.split('/')[1];
+      if (userId) {
+        console.log(`[VideoController] Extracted userId from baseUrl: ${userId}`);
+        return userId;
+      }
+    }
+
+    // Default fallback
+    console.log('[VideoController] No userId found, using default');
+    return 'default';
+  }
+
+  // Get all recorded videos for a specific user
   async getAllVideos(req, res) {
+    const userId = this.getUserId(req);
+    console.log(`[getAllVideos] userId: ${userId}, path: ${req.path}`);
+    
     try {
-      const videos = await videoRepository.getAllVideos();
+      const videos = await this.videoRepository.getAllVideos(userId);
       res.json(videos);
     } catch (error) {
-      console.error('Error getting videos:', error);
-      res.status(500).json({ error: '녹화 목록을 불러오는데 실패했습니다.' });
+      console.error('[getAllVideos] Error:', error);
+      res.status(500).json({ error: 'Failed to get videos' });
     }
   }
 
   // Convert WebM to MP4
   async convertVideo(req, res) {
+    const userId = this.getUserId(req);
+    console.log(`[convertVideo] userId: ${userId}, path: ${req.path}, file:`, req.file);
+    
     if (!req.file) {
-      return res.status(400).json({ error: '동영상 파일이 업로드되지 않았습니다.' });
+      return res.status(400).json({ error: 'No video file uploaded' });
     }
 
-    const inputPath = req.file.path;
-    const quality = req.query.quality || '720';
-    const downloadRequested = req.query.download !== 'false';
-    
     try {
-      const result = await videoRepository.convertVideo(inputPath, quality);
-      
-      if (downloadRequested) {
-        // Send file as download
-        res.download(result.outputPath, result.filename, (err) => {
-          if (err) {
-            console.error('Error sending file:', err);
-          }
-        });
-      } else {
-        // Send JSON response
-        res.json({
-          success: true,
-          message: 'MP4 변환이 완료되었습니다.',
-          filename: result.filename,
-          path: `/recordings/${result.filename}`,
-          size: result.size
-        });
-      }
+      const result = await this.videoRepository.convertVideo(req.file.path, req.query.quality, userId);
+      res.json(result);
     } catch (error) {
-      console.error('Error in video conversion:', error);
-      res.status(500).json({ error: '비디오 변환 중 오류가 발생했습니다.' });
+      console.error('[convertVideo] Error:', error);
+      res.status(500).json({ error: 'Video conversion failed' });
     }
   }
 
   // Save WebM without conversion
   async saveWebm(req, res) {
+    const userId = this.getUserId(req);
+    console.log(`[saveWebm] userId: ${userId}, path: ${req.path}, originalUrl: ${req.originalUrl}`);
+    console.log(`[saveWebm] req.params:`, req.params);
+    console.log(`[saveWebm] req.baseUrl:`, req.baseUrl);
+
     if (!req.file) {
-      return res.status(400).json({ error: '동영상 파일이 업로드되지 않았습니다.' });
+      return res.status(400).json({ error: 'No video file uploaded' });
     }
 
-    const inputPath = req.file.path;
-    const downloadRequested = req.query.download !== 'false';
-    
     try {
-      const result = await videoRepository.saveWebmFile(inputPath);
-      
-      if (downloadRequested) {
-        // Send file as download
-        res.download(result.outputPath, result.filename, (err) => {
-          if (err) {
-            console.error('Error sending file:', err);
-          }
-        });
-      } else {
-        // Send JSON response
-        res.json({
-          success: true,
-          message: 'WebM 파일이 저장되었습니다.',
-          filename: result.filename,
-          path: `/recordings/${result.filename}`,
-          size: result.size
-        });
-      }
+      const result = await this.videoRepository.saveWebmFile(req.file.path, userId);
+      res.json(result);
     } catch (error) {
-      console.error('Error saving WebM:', error);
-      res.status(500).json({ error: '파일 저장 중 오류가 발생했습니다.' });
+      console.error('[saveWebm] Error:', error);
+      res.status(500).json({ error: 'Failed to save WebM file' });
     }
   }
 
   // Handle direct file upload
   async uploadVideo(req, res) {
+    const userId = this.getUserId(req);
+    console.log(`[uploadVideo] userId: ${userId}, path: ${req.path}, file:`, req.file);
+
     if (!req.file) {
-      return res.status(400).json({ error: '파일이 업로드되지 않았습니다.' });
+      return res.status(400).json({ error: 'No video file uploaded' });
     }
 
-    // File upload info
     const fileInfo = {
       filename: req.file.filename,
       originalname: req.file.originalname,
       mimetype: req.file.mimetype,
       size: req.file.size,
-      path: `/recordings/${req.file.filename}`
+      path: req.file.path
     };
-    
-    console.log(`File uploaded: ${fileInfo.filename}`);
-    
-    // Success response
-    res.status(200).json({
-      success: true,
-      message: '파일이 성공적으로 업로드되었습니다.',
-      file: fileInfo
-    });
+
+    console.log(`[uploadVideo] File uploaded to user directory ${userId}:`, fileInfo);
+    res.status(200).json({ message: 'File uploaded successfully', file: fileInfo });
   }
 
   // Stream video with support for HTTP Range requests
-  streamVideo(req, res) {
+  async streamVideo(req, res) {
+    const userId = this.getUserId(req);
     const filename = req.params.filename;
-    const { filepath } = videoRepository.getVideoStream(filename);
-    
-    // Check if file exists
-    fs.stat(filepath, (err, stats) => {
-      if (err) {
-        if (err.code === 'ENOENT') {
-          return res.status(404).send('파일을 찾을 수 없습니다.');
-        }
-        console.error('Error checking file:', err);
-        return res.status(500).send('서버 오류가 발생했습니다.');
+    console.log(`[streamVideo] userId: ${userId}, filename: ${filename}`);
+
+    try {
+      const { filepath } = this.videoRepository.getVideoStream(filename, userId);
+      
+      // Check if file exists
+      if (!fs.existsSync(filepath)) {
+        console.error(`[streamVideo] File not found: ${filepath}`);
+        return res.status(404).json({ error: 'Video file not found' });
       }
-      
-      // Determine content type
-      const contentType = filename.endsWith('.mp4') ? 'video/mp4' : 'video/webm';
-      
-      // File size
-      const fileSize = stats.size;
-      
-      // Check for Range header
+
+      const stat = fs.statSync(filepath);
+      const fileSize = stat.size;
       const range = req.headers.range;
-      
+
       if (range) {
-        // Parse range header
-        const parts = range.replace(/bytes=/, '').split('-');
+        const parts = range.replace(/bytes=/, "").split("-");
         const start = parseInt(parts[0], 10);
-        // If end is not specified, use file end
         const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-        
-        // Validate range
-        if (start >= fileSize || end >= fileSize) {
-          return res.status(416).send('Requested Range Not Satisfiable');
-        }
-        
-        // Chunk size
-        const chunkSize = (end - start) + 1;
-        
-        // Set response headers
-        res.writeHead(206, {
+        const chunksize = (end - start) + 1;
+        const file = fs.createReadStream(filepath, { start, end });
+        const head = {
           'Content-Range': `bytes ${start}-${end}/${fileSize}`,
           'Accept-Ranges': 'bytes',
-          'Content-Length': chunkSize,
-          'Content-Type': contentType
-        });
-        
-        // Create file stream and pipe to response
-        const stream = fs.createReadStream(filepath, { start, end });
-        stream.pipe(res);
-        
-        // Handle errors
-        stream.on('error', err => {
-          console.error('Stream error:', err);
-          if (!res.headersSent) {
-            res.status(500).send('스트리밍 중 오류가 발생했습니다.');
-          }
-        });
+          'Content-Length': chunksize,
+          'Content-Type': 'video/webm',
+        };
+        res.writeHead(206, head);
+        file.pipe(res);
       } else {
-        // If no Range header, send entire file
-        res.writeHead(200, {
+        const head = {
           'Content-Length': fileSize,
-          'Content-Type': contentType
-        });
-        
-        const stream = fs.createReadStream(filepath);
-        stream.pipe(res);
-        
-        stream.on('error', err => {
-          console.error('Stream error:', err);
-          if (!res.headersSent) {
-            res.status(500).send('스트리밍 중 오류가 발생했습니다.');
-          }
-        });
+          'Content-Type': 'video/webm',
+        };
+        res.writeHead(200, head);
+        fs.createReadStream(filepath).pipe(res);
       }
-    });
+    } catch (error) {
+      console.error('[streamVideo] Error:', error);
+      res.status(500).json({ error: 'Failed to stream video' });
+    }
   }
 }
 

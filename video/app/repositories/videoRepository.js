@@ -21,13 +21,26 @@ class VideoRepository {
       fs.mkdirSync(this.tempDir, { recursive: true });
     }
   }
+  
+  // Get user-specific directory and ensure it exists
+  getUserDir(userId) {
+    const userDir = path.join(this.recordedDir, userId);
+    if (!fs.existsSync(userDir)) {
+      console.log(`Creating user directory: ${userDir}`);
+      fs.mkdirSync(userDir, { recursive: true });
+    }
+    return userDir;
+  }
 
   // Get all video files with their metadata
-  getAllVideos() {
+  getAllVideos(userId = 'default') {
     return new Promise((resolve, reject) => {
-      fs.readdir(this.recordedDir, (err, files) => {
+      const userDir = this.getUserDir(userId);
+      console.log(`[getAllVideos] Looking for videos in: ${userDir}`);
+      
+      fs.readdir(userDir, (err, files) => {
         if (err) {
-          console.error('Error reading recorded directory:', err);
+          console.error(`Error reading user directory for ${userId}:`, err);
           return reject(err);
         }
         
@@ -36,14 +49,16 @@ class VideoRepository {
           file.endsWith('.mp4') || file.endsWith('.webm')
         );
         
+        console.log(`[getAllVideos] Found ${videoFiles.length} video files for user ${userId}`);
+        
         // Get file stats for each video
         const fileDetails = videoFiles.map(file => {
-          const filePath = path.join(this.recordedDir, file);
+          const filePath = path.join(userDir, file);
           const stats = fs.statSync(filePath);
           
           return {
             name: file,
-            path: `/recordings/${file}`,
+            path: `/${userId}/recordings/${file}`,
             size: stats.size,
             created: stats.birthtime
           };
@@ -58,11 +73,12 @@ class VideoRepository {
   }
 
   // Convert WebM to MP4 with specified quality
-  convertVideo(inputPath, quality) {
+  convertVideo(inputPath, quality, userId = 'default') {
     return new Promise((resolve, reject) => {
+      const userDir = this.getUserDir(userId);
       const now = new Date().toISOString().replace(/:/g, '-').replace(/\..+/, '');
       const outputFilename = `screen_${now}_${quality}p.mp4`;
-      const outputPath = path.join(this.recordedDir, outputFilename);
+      const outputPath = path.join(userDir, outputFilename);
       
       // Define quality settings for different resolutions
       const qualitySettings = {
@@ -77,11 +93,17 @@ class VideoRepository {
       // Use the requested quality settings or default to 720p if invalid
       const videoSettings = qualitySettings[quality] || qualitySettings['720'];
 
-      console.log(`Converting video: ${inputPath}`);
-      console.log(`Output: ${outputPath}`);
-      console.log(`Using quality settings: ${quality}p - ${videoSettings.resolution}`);
+      console.log(`[convertVideo] Converting video for user ${userId}: ${inputPath}`);
+      console.log(`[convertVideo] Output: ${outputPath}`);
+      console.log(`[convertVideo] Using quality settings: ${quality}p - ${videoSettings.resolution}`);
 
       try {
+        // Check if input file exists
+        if (!fs.existsSync(inputPath)) {
+          console.error(`[convertVideo] Input file does not exist: ${inputPath}`);
+          return reject(new Error('Input file does not exist'));
+        }
+
         ffmpeg(inputPath)
           .videoCodec('libx264')
           .audioCodec('aac')
@@ -90,11 +112,11 @@ class VideoRepository {
           .audioBitrate(videoSettings.audioBitrate)
           .output(outputPath)
           .on('start', () => {
-            console.log('Started video conversion process');
+            console.log('[convertVideo] Started video conversion process');
           })
           .on('end', () => {
-            console.log('Video conversion completed');
-            console.log(`File saved to: ${outputPath}`);
+            console.log('[convertVideo] Video conversion completed');
+            console.log(`[convertVideo] File saved to: ${outputPath}`);
             
             // Clean up the temp file
             this.deleteFile(inputPath);
@@ -102,13 +124,13 @@ class VideoRepository {
             resolve({
               success: true,
               filename: outputFilename,
-              path: `/recordings/${outputFilename}`,
+              path: `/${userId}/recordings/${outputFilename}`,
               size: fs.statSync(outputPath).size,
               outputPath
             });
           })
           .on('error', (err) => {
-            console.error('Error during video conversion:', err);
+            console.error('[convertVideo] Error during video conversion:', err);
             
             // Clean up the temp file
             this.deleteFile(inputPath);
@@ -117,7 +139,7 @@ class VideoRepository {
           })
           .run();
       } catch (error) {
-        console.error('Exception during FFmpeg setup:', error);
+        console.error('[convertVideo] Exception during FFmpeg setup:', error);
         
         // Clean up the temp file
         this.deleteFile(inputPath);
@@ -128,24 +150,36 @@ class VideoRepository {
   }
 
   // Save WebM file directly without conversion
-  saveWebmFile(inputPath) {
+  saveWebmFile(inputPath, userId = 'default') {
     return new Promise((resolve, reject) => {
+      const userDir = this.getUserDir(userId);
       const now = new Date().toISOString().replace(/:/g, '-').replace(/\..+/, '');
       const outputFilename = `screen_${now}.webm`;
-      const outputPath = path.join(this.recordedDir, outputFilename);
+      const outputPath = path.join(userDir, outputFilename);
       
-      console.log(`Saving WebM video: ${inputPath}`);
-      console.log(`Output: ${outputPath}`);
+      console.log(`[saveWebmFile] Saving WebM video for user ${userId}: ${inputPath}`);
+      console.log(`[saveWebmFile] Output: ${outputPath}`);
 
-      // Copy the file to the recorded directory
+      // Check if input file exists
+      if (!fs.existsSync(inputPath)) {
+        console.error(`[saveWebmFile] Input file does not exist: ${inputPath}`);
+        return reject(new Error('Input file does not exist'));
+      }
+
+      // Copy the file to the user's directory
       const readStream = fs.createReadStream(inputPath);
       const writeStream = fs.createWriteStream(outputPath);
       
       readStream.pipe(writeStream);
       
+      readStream.on('error', (err) => {
+        console.error('[saveWebmFile] Error reading input file:', err);
+        reject(err);
+      });
+      
       writeStream.on('finish', () => {
-        console.log('WebM file saved successfully');
-        console.log(`File saved to: ${outputPath}`);
+        console.log('[saveWebmFile] WebM file saved successfully');
+        console.log(`[saveWebmFile] File saved to: ${outputPath}`);
         
         // Clean up the temp file
         this.deleteFile(inputPath);
@@ -153,14 +187,14 @@ class VideoRepository {
         resolve({
           success: true,
           filename: outputFilename,
-          path: `/recordings/${outputFilename}`,
+          path: `/${userId}/recordings/${outputFilename}`,
           size: fs.statSync(outputPath).size,
           outputPath
         });
       });
       
       writeStream.on('error', (err) => {
-        console.error('Error saving WebM file:', err);
+        console.error('[saveWebmFile] Error saving WebM file:', err);
         
         // Clean up the temp file
         this.deleteFile(inputPath);
@@ -173,15 +207,21 @@ class VideoRepository {
   // Helper method to delete a file
   deleteFile(filePath) {
     fs.unlink(filePath, (err) => {
-      if (err) console.error('Error deleting file:', err);
+      if (err) {
+        console.error(`Error deleting file ${filePath}:`, err);
+      } else {
+        console.log(`Successfully deleted temp file: ${filePath}`);
+      }
     });
   }
   
-  // Get a specific video by filename
-  getVideoStream(filename) {
-    const filepath = path.join(this.recordedDir, filename);
+  // Get a specific video by filename for a user
+  getVideoStream(filename, userId = 'default') {
+    const userDir = this.getUserDir(userId);
+    const filepath = path.join(userDir, filename);
+    console.log(`[getVideoStream] Streaming file: ${filepath} for user ${userId}`);
     return { filepath };
   }
 }
 
-module.exports = new VideoRepository(); 
+module.exports = VideoRepository; 
