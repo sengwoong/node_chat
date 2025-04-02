@@ -261,8 +261,15 @@
   </div>
   
   <script>
-    // 서버 베이스 URL 설정 (포트 포함)
-    const serverBaseUrl = 'http://localhost:8080';
+    // User ID detection from URL
+    const pathname = window.location.pathname;
+    const userId = pathname.split('/')[1] || 'default'; // Extract user ID from URL
+    console.log(userId);
+    // Server base URL with user ID
+    const serverBaseUrl = `http://localhost:8080/${userId}`;
+    
+    // Log the current user
+    console.log(`Current user ID: ${userId}`);
     
     let videoElement = document.getElementById("myVideo");
     let selectButton = document.getElementById("selectSource");
@@ -552,7 +559,7 @@
         const formData = new FormData();
         formData.append("video", blob, "video.webm");
         
-        // Send to server
+        // Send to server - use the endpoint directly, as serverBaseUrl already includes userId
         const xhr = new XMLHttpRequest();
         xhr.open("POST", `${serverBaseUrl}${endpoint}?quality=${quality}&download=${download}`, true);
         
@@ -762,6 +769,7 @@
           }
         };
         
+        // Use the endpoint directly, as serverBaseUrl already includes userId
         xhr.open('POST', `${serverBaseUrl}/upload`, true);
         xhr.send(formData);
         

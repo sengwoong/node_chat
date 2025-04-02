@@ -158,8 +158,16 @@
     const bufferInfo = document.getElementById('bufferInfo');
     const playbackRateSelect = document.getElementById('playbackRate');
     
-    // 서버 기본 URL
-    const serverBaseUrl = 'http://localhost:8080';
+    // User ID detection from URL
+    const pathname = window.location.pathname;
+    const pathParts = pathname.split('/');
+    const userId = pathParts[1] || 'default'; // Extract user ID from URL
+    
+    // Server base URL with user ID
+    const serverBaseUrl = `http://localhost:8080/${userId}`;
+    
+    // Log the current user
+    console.log(`Current user ID: ${userId}`);
     
     // 현재 선택된 비디오 정보
     let currentVideo = null;
@@ -169,9 +177,8 @@
       loadVideoList();
       
       // URL에서 파일명 추출해서 자동 재생 (있는 경우)
-      const pathParts = window.location.pathname.split('/');
-      if (pathParts.length >= 3 && pathParts[1] === 'stream' && pathParts[2] === 'watch') {
-        const filename = decodeURIComponent(pathParts[3]);
+      if (pathParts.length >= 4 && pathParts[2] === 'stream' && pathParts[3] === 'watch') {
+        const filename = decodeURIComponent(pathParts[4]);
         if (filename) {
           playVideo(filename);
         }
@@ -263,7 +270,7 @@
       currentVideoInfo.textContent = `선택된 비디오: ${filename}`;
       
       // URL 업데이트 (히스토리 변경 없이)
-      window.history.replaceState(null, '', `/stream/watch/${encodeURIComponent(filename)}`);
+      window.history.replaceState(null, '', `/${userId}/stream/watch/${encodeURIComponent(filename)}`);
     }
     
     // 파일 크기 포맷팅
