@@ -7,7 +7,7 @@ const config = {
     recordedDir: path.join(__dirname, '../../recorded'),
     tempDir: path.join(__dirname, '../../temp'),
     publicDir: path.join(__dirname, '../../public'),
-    streamHtmlDir: path.join(__dirname, '../../stream.html')
+    streamHtmlDir: path.join(__dirname, '..', '..', 'stream')
   },
   upload: {
     videoSizeLimit: 1024 * 1024 * 500 // 500MB limit

@@ -52,11 +52,11 @@ class RoomRepository {
     }
   }
 
-  async createRoom(name) {
+  async createRoom(name, userId) {
     const pool = getPool();
     try {
-      await pool.execute('INSERT INTO chatting.room(name) VALUES(?)', [name]);
-      console.log('채팅방 생성됨 (Subscriber):', name);
+      await pool.execute('INSERT INTO chatting.room(name, creatorUserId) VALUES(?, ?)', [name, userId]);
+      console.log('채팅방 생성됨 (Subscriber):', name, 'by user:', userId);
       return true;
     } catch (error) {
       console.error('채팅방 생성 실패 (Subscriber):', error);

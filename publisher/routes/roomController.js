@@ -24,13 +24,20 @@ async function getRoomList(req, res) {
 
 async function createRoom(req, res) {
   try {
-    const { name } = req.body;
+    // Log the incoming request body
+    console.log('[Publisher Controller] Received /make-room request body:', req.body);
+    
+    const { name, userId } = req.body;
     
     if (!name) {
       return response(res, 422, '채팅방 이름이 필요합니다');
     }
     
-    await roomService.createRoom(name);
+    if (!userId) {
+      return response(res, 422, '사용자 ID가 필요합니다');
+    }
+    
+    await roomService.createRoom(name, userId);
     return response(res, 200, 'Success');
   } catch (error) {
     console.error('채팅방 생성 실패:', error);

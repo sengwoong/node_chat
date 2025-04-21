@@ -24,8 +24,8 @@ async function setupConsumer(kafka) {
           } 
           else if (data.type === 'room_create') {
             // 채팅방 생성 처리
-            await roomService.createRoom(data.name);
-            console.log('채팅방 생성 완료:', data.name);
+            await roomService.createRoom(data.name, data.userId);
+            console.log('채팅방 생성 완료:', data.name, 'by user:', data.userId);
           }
           else if (data.type === 'room_delete') {
             // 채팅방 삭제 처리

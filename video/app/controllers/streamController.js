@@ -1,9 +1,18 @@
 const fs = require('fs');
 const path = require('path');
 const config = require('../config/config');
-const videoRepository = require('../repositories/videoRepository');
+const VideoRepository = require('../repositories/videoRepository');
 
 class StreamController {
+  constructor() {
+    this.videoRepository = new VideoRepository();
+
+    // Bind methods to the instance to ensure correct 'this' context
+    this.serveStreamPage = this.serveStreamPage.bind(this);
+    this.serveWatchPage = this.serveWatchPage.bind(this);
+    this.getStreamVideos = this.getStreamVideos.bind(this);
+  }
+
   // Serve the streaming page
   serveStreamPage(req, res) {
     // Get user ID from userIdFromPath or params or default to 'default'
@@ -35,7 +44,7 @@ class StreamController {
       console.log(`[getStreamVideos] req.params:`, req.params);
       console.log(`[getStreamVideos] req.baseUrl:`, req.baseUrl);
       
-      const videos = await videoRepository.getAllVideos(userId);
+      const videos = await this.videoRepository.getAllVideos(userId);
       
       // Add stream paths
       videos.forEach(video => {

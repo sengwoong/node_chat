@@ -19,23 +19,30 @@ class RoomService {
   }
 
   // 채팅방 생성 - Kafka로 이벤트 발행
-  async createRoom(name) {
+  async createRoom(name, userId) {
     try {
       // Subscriber가 DB에 저장할 수 있도록 Kafka에 메시지 발행
       if (kafkaProducer) {
+        // Prepare the message payload
+        const messagePayload = {
+          type: 'room_create',
+          name,
+          userId,
+          timestamp: new Date().toISOString()
+        };
+
+        // Log the payload right before sending to Kafka
+        console.log('[Publisher Service] Preparing to send Kafka message:', JSON.stringify(messagePayload));
+
         await kafkaProducer.send({
           topic: 'chat',
           messages: [
             { 
-              value: JSON.stringify({ 
-                type: 'room_create',
-                name,
-                timestamp: new Date().toISOString()
-              }) 
+              value: JSON.stringify(messagePayload) 
             },
           ],
         });
-        console.log('채팅방 생성 요청을 Kafka로 발행:', name);
+        console.log('채팅방 생성 요청을 Kafka로 발행:', name, 'UserId:', userId);
         return true;
       } else {
         console.error('Kafka producer가 설정되지 않았습니다');

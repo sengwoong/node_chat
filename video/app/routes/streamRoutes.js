@@ -15,15 +15,15 @@ router.use((req, res, next) => {
 });
 
 // Stream player page
-router.get('/', streamController.serveStreamPage);
+router.get('/', (req, res) => streamController.serveStreamPage(req, res));
 
 // Individual video watch page
-router.get('/watch', streamController.serveWatchPage);
+router.get('/watch', (req, res) => streamController.serveWatchPage(req, res));
 
 // Get all videos for streaming
-router.get('/videos', streamController.getStreamVideos);
+router.get('/videos', (req, res) => streamController.getStreamVideos(req, res));
 
 // Stream a video file
-router.get('/video/:filename', videoController.streamVideo);
+router.get('/video/:filename', (req, res) => videoController.streamVideo(req, res));
 
 module.exports = router; 

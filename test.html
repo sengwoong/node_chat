@@ -104,9 +104,22 @@
     });
     let currentRoom = '';
     let currentUser = '';
+    let currentUserId = '';
     
-    // 페이지 로드 시 방 목록 조회
+    // Function to get query parameters
+    function getQueryParam(param) {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get(param);
+    }
+    
+    // 페이지 로드 시 방 목록 조회 및 userId 설정
     window.onload = function() {
+      currentUserId = getQueryParam('userId');
+      if (!currentUserId) {
+        console.warn('UserId not found in URL query parameters. Using default "unknown".');
+        currentUserId = 'unknown';
+      }
+      console.log('Current User ID:', currentUserId);
       loadRoomList();
     };
     
@@ -153,12 +166,15 @@
       }
       
       try {
+        // Log the userId right before sending the request
+        console.log('Sending createRoom request with userId:', currentUserId);
+        
         const response = await fetch('http://localhost:1010/make-room', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ name: roomName })
+          body: JSON.stringify({ name: roomName, userId: currentUserId })
         });
         
         const data = await response.json();

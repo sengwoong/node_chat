@@ -26,10 +26,10 @@ class RoomService {
   }
   
   // 채팅방 생성 (Kafka에서 이벤트를 받아 처리)
-  async createRoom(name) {
+  async createRoom(name, userId) {
     try {
       // Repository를 통해 DB에 채팅방 생성
-      return await roomRepository.createRoom(name);
+      return await roomRepository.createRoom(name, userId);
     } catch (error) {
       console.error('채팅방 생성 실패 (Subscriber):', error);
       throw error;
