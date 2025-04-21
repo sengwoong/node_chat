@@ -49,7 +49,7 @@ async function startServer() {
       try {
         const database = require('./config/database');
         await database.getPool().query(
-          "INSERT INTO serverInfo(`ip`, `available`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `available` = VALUES(`available`)", 
+          "INSERT INTO chatting.serverInfo(`ip`, `available`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `available` = VALUES(`available`)", 
           [`${ip}:${PORT}`, 1]
         );
         
@@ -82,7 +82,7 @@ async function startServer() {
       try {
         const database = require('./config/database');
         await database.getPool().execute(
-          "UPDATE serverInfo SET available = ? WHERE ip = ?", 
+          "UPDATE chatting.serverInfo SET available = ? WHERE ip = ?", 
           [0, `${ip}:${PORT}`]
         );
         

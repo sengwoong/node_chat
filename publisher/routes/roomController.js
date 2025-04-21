@@ -1,4 +1,4 @@
-const roomService = require('../service/roomService');
+const { roomService } = require('../service/roomService');
 
 // 응답 헬퍼 함수
 function response(res, statusCode, result, data = '') {

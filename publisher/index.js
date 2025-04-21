@@ -5,6 +5,7 @@ const { setupKafka } = require('./config/kafka');
 const { setupSocketIO } = require('./socket');
 const { setupRoutes } = require('./routes');
 const { getLocalIP } = require('./utils/network');
+const { roomService, setKafkaProducer } = require('./service/roomService');
 
 // 환경 변수 로드
 dotenv.config();
@@ -36,6 +37,9 @@ async function startServer() {
     // Kafka 설정
     const kafka = await setupKafka();
     
+    // RoomService에 Kafka producer 주입
+    setKafkaProducer(kafka.producer);
+    
     // 소켓 설정
     const io = setupSocketIO(server, kafka);
     
@@ -51,7 +55,7 @@ async function startServer() {
       try {
         const database = require('./config/database');
         await database.getPool().query(
-          "INSERT INTO serverInfo(`ip`, `available`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `available` = VALUES(`available`)", 
+          "INSERT INTO chatting.serverInfo(`ip`, `available`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `available` = VALUES(`available`)", 
           [`${ip}:${PORT}`, 1]
         );
         
@@ -84,7 +88,7 @@ async function startServer() {
       try {
         const database = require('./config/database');
         await database.getPool().query(
-          "UPDATE serverInfo SET available = ? WHERE ip = ?", 
+          "UPDATE chatting.serverInfo SET available = ? WHERE ip = ?", 
           [0, `${ip}:${PORT}`]
         );
         

@@ -73,19 +73,24 @@ class RoomRepository {
     }
   }
 
+  // 리팩토링: Publisher는 메시지 저장 담당하지 않음
+  // 이 메서드는 더 이상 사용되지 않으며, 메시지 저장은 Subscriber에서 처리
   async insertChat(name, message, roomName) {
-    const pool = getPool();
-    try {
-      await pool.query(
-        'INSERT INTO chatting.chat(room, name, message) VALUES(?, ?, ?)',
-        [roomName, name, message]
-      );
-      console.log('채팅 저장됨:', name, message, roomName);
-      return true;
-    } catch (error) {
-      console.error('채팅 저장 실패:', error);
-      throw error;
-    }
+    console.log('리팩토링 알림: Publisher는 메시지 저장을 담당하지 않습니다. Subscriber에서 처리됩니다.');
+    return true;
+    
+    // const pool = getPool();
+    // try {
+    //   await pool.query(
+    //     'INSERT INTO chatting.chat(room, name, message) VALUES(?, ?, ?)',
+    //     [roomName, name, message]
+    //   );
+    //   console.log('채팅 저장됨:', name, message, roomName);
+    //   return true;
+    // } catch (error) {
+    //   console.error('채팅 저장 실패:', error);
+    //   throw error;
+    // }
   }
 
   async deleteRoom(name) {

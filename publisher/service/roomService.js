@@ -1,6 +1,14 @@
 const roomRepository = require('../repository/roomRepository');
 const { getPool } = require('../config/database');
 
+// Kafka 발행 함수를 위해 추가 (임시로 전역 변수 사용, 실제로는 의존성 주입 방식으로 개선 필요)
+let kafkaProducer = null;
+
+// Kafka Producer 설정
+function setKafkaProducer(producer) {
+  kafkaProducer = producer;
+}
+
 class RoomService {
   async getRoomList() {
     try {
@@ -10,10 +18,31 @@ class RoomService {
     }
   }
 
+  // 채팅방 생성 - Kafka로 이벤트 발행
   async createRoom(name) {
     try {
-      return await roomRepository.createRoom(name);
+      // Subscriber가 DB에 저장할 수 있도록 Kafka에 메시지 발행
+      if (kafkaProducer) {
+        await kafkaProducer.send({
+          topic: 'chat',
+          messages: [
+            { 
+              value: JSON.stringify({ 
+                type: 'room_create',
+                name,
+                timestamp: new Date().toISOString()
+              }) 
+            },
+          ],
+        });
+        console.log('채팅방 생성 요청을 Kafka로 발행:', name);
+        return true;
+      } else {
+        console.error('Kafka producer가 설정되지 않았습니다');
+        throw new Error('Kafka producer 미설정');
+      }
     } catch (error) {
+      console.error('채팅방 생성 요청 발행 실패:', error);
       throw error;
     }
   }
@@ -42,21 +71,67 @@ class RoomService {
     }
   }
 
+  // Publisher는 채팅 메시지 저장을 직접 수행하지 않음
+  // 저장은 Subscriber에서 담당
+  // 만약 API를 통한 메시지 전송이 필요하면 이 메서드를 사용하는 대신
+  // Kafka에 메시지를 발행하도록 수정 필요
   async insertChat(name, message, roomName) {
-    try {
-      return await roomRepository.insertChat(name, message, roomName);
-    } catch (error) {
-      throw error;
+    console.log('메시지 저장은 Subscriber가 담당합니다. Kafka로 메시지 발행이 필요합니다.');
+    
+    // Kafka 발행 예시
+    if (kafkaProducer) {
+      await kafkaProducer.send({
+        topic: 'chat',
+        messages: [
+          { 
+            value: JSON.stringify({ 
+              type: 'message',
+              room: roomName, 
+              name, 
+              message,
+              timestamp: new Date().toISOString()
+            }) 
+          },
+        ],
+      });
+      return true;
+    } else {
+      console.error('Kafka producer가 설정되지 않았습니다');
+      return false;
     }
   }
 
+  // 채팅방 삭제 - Kafka로 이벤트 발행
   async deleteRoom(name) {
     try {
-      return await roomRepository.deleteRoom(name);
+      // Subscriber가 DB에서 삭제할 수 있도록 Kafka에 메시지 발행
+      if (kafkaProducer) {
+        await kafkaProducer.send({
+          topic: 'chat',
+          messages: [
+            { 
+              value: JSON.stringify({ 
+                type: 'room_delete',
+                name,
+                timestamp: new Date().toISOString()
+              }) 
+            },
+          ],
+        });
+        console.log('채팅방 삭제 요청을 Kafka로 발행:', name);
+        return true;
+      } else {
+        console.error('Kafka producer가 설정되지 않았습니다');
+        throw new Error('Kafka producer 미설정');
+      }
     } catch (error) {
+      console.error('채팅방 삭제 요청 발행 실패:', error);
       throw error;
     }
   }
 }
 
-module.exports = new RoomService(); 
+module.exports = {
+  roomService: new RoomService(),
+  setKafkaProducer
+}; 

@@ -51,6 +51,33 @@ class RoomRepository {
       throw error;
     }
   }
+
+  async createRoom(name) {
+    const pool = getPool();
+    try {
+      await pool.execute('INSERT INTO chatting.room(name) VALUES(?)', [name]);
+      console.log('채팅방 생성됨 (Subscriber):', name);
+      return true;
+    } catch (error) {
+      console.error('채팅방 생성 실패 (Subscriber):', error);
+      throw error;
+    }
+  }
+
+  async deleteRoom(name) {
+    const pool = getPool();
+    try {
+      await pool.query('DELETE FROM chatting.chat WHERE room = ?', [name]);
+      
+      await pool.query('DELETE FROM chatting.room WHERE name = ?', [name]);
+      
+      console.log('채팅방 삭제됨 (Subscriber):', name);
+      return true;
+    } catch (error) {
+      console.error('채팅방 삭제 실패 (Subscriber):', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = new RoomRepository(); 
