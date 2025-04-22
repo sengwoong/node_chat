@@ -90,13 +90,21 @@ async function getChatList(req, res) {
 
 async function deleteRoom(req, res) {
   try {
-    const { name } = req.body;
+    // Extract name and userId from request body
+    const { name, userId } = req.body;
+    console.log('[Publisher Controller] Received /delete-room request:', { name, userId }); // Log incoming request
     
     if (!name) {
       return response(res, 422, '채팅방 이름이 필요합니다');
     }
     
-    await roomService.deleteRoom(name);
+    // Add validation for userId if necessary
+    if (!userId) {
+        return response(res, 422, '사용자 ID가 필요합니다');
+    }
+    
+    // Pass both name and userId to the service
+    await roomService.deleteRoom(name, userId);
     return response(res, 200, 'Success');
   } catch (error) {
     console.error('채팅방 삭제 실패:', error);

@@ -29,8 +29,8 @@ async function setupConsumer(kafka) {
           }
           else if (data.type === 'room_delete') {
             // 채팅방 삭제 처리
-            await roomService.deleteRoom(data.name);
-            console.log('채팅방 삭제 완료:', data.name);
+            await roomService.deleteRoom(data.name, data.userId);
+            console.log('채팅방 삭제 처리 완료:', data.name, 'Requested by:', data.userId);
           }
           else if (data.type === 'user_joined' || data.type === 'user_left') {
             // 사용자 입장/퇴장 이벤트 처리 - 필요시 로깅 또는 저장

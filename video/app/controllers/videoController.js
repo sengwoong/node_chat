@@ -130,6 +130,16 @@ class VideoController {
       const fileSize = stat.size;
       const range = req.headers.range;
 
+      // Determine content type based on file extension
+      let contentType = 'video/webm';
+      if (filename.endsWith('.mp4')) {
+        contentType = 'video/mp4';
+      } else if (filename.endsWith('.webm')) {
+        contentType = 'video/webm';
+      }
+      
+      console.log(`[streamVideo] Streaming file: ${filepath}, size: ${fileSize}, type: ${contentType}`);
+
       if (range) {
         const parts = range.replace(/bytes=/, "").split("-");
         const start = parseInt(parts[0], 10);
@@ -140,14 +150,14 @@ class VideoController {
           'Content-Range': `bytes ${start}-${end}/${fileSize}`,
           'Accept-Ranges': 'bytes',
           'Content-Length': chunksize,
-          'Content-Type': 'video/webm',
+          'Content-Type': contentType,
         };
         res.writeHead(206, head);
         file.pipe(res);
       } else {
         const head = {
           'Content-Length': fileSize,
-          'Content-Type': 'video/webm',
+          'Content-Type': contentType,
         };
         res.writeHead(200, head);
         fs.createReadStream(filepath).pipe(res);

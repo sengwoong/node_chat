@@ -109,23 +109,32 @@ class RoomService {
   }
 
   // 채팅방 삭제 - Kafka로 이벤트 발행
-  async deleteRoom(name) {
+  async deleteRoom(name, userId) {
     try {
       // Subscriber가 DB에서 삭제할 수 있도록 Kafka에 메시지 발행
       if (kafkaProducer) {
+        // Prepare the message payload including userId
+        const messagePayload = {
+          type: 'room_delete',
+          name,
+          userId,
+          timestamp: new Date().toISOString()
+        };
+        
+        // Log the payload being sent
+        console.log('[Publisher Service] Preparing to send Kafka delete message:', JSON.stringify(messagePayload));
+
         await kafkaProducer.send({
           topic: 'chat',
           messages: [
             { 
-              value: JSON.stringify({ 
-                type: 'room_delete',
-                name,
-                timestamp: new Date().toISOString()
-              }) 
+              // Send the full payload
+              value: JSON.stringify(messagePayload) 
             },
           ],
         });
-        console.log('채팅방 삭제 요청을 Kafka로 발행:', name);
+        // Update log message
+        console.log('채팅방 삭제 요청을 Kafka로 발행:', name, 'Requested by userId:', userId);
         return true;
       } else {
         console.error('Kafka producer가 설정되지 않았습니다');

@@ -64,18 +64,39 @@ class RoomRepository {
     }
   }
 
-  async deleteRoom(name) {
+  async deleteRoom(name, userId) {
     const pool = getPool();
+    const connection = await pool.getConnection();
     try {
-      await pool.query('DELETE FROM chatting.chat WHERE room = ?', [name]);
+      await connection.beginTransaction();
+
+      const [rows] = await connection.query('SELECT creatorUserId FROM chatting.room WHERE name = ?', [name]);
       
-      await pool.query('DELETE FROM chatting.room WHERE name = ?', [name]);
+      if (rows.length === 0) {
+        throw new Error(`삭제할 방("${name}")을 찾을 수 없습니다.`);
+      }
       
-      console.log('채팅방 삭제됨 (Subscriber):', name);
+      const room = rows[0];
+      
+      if (room.creatorUserId !== userId) {
+          console.warn(`사용자("${userId}")가 방("${name}") 삭제 권한 없음. 생성자: "${room.creatorUserId}"`);
+          throw new Error('이 채팅방을 삭제할 권한이 없습니다.');
+      }
+      
+      await connection.query('DELETE FROM chatting.chat WHERE room = ?', [name]);
+      
+      await connection.query('DELETE FROM chatting.room WHERE name = ?', [name]);
+      
+      await connection.commit();
+      
+      console.log('채팅방 삭제됨 (Subscriber):', name, 'by authorized user:', userId);
       return true;
     } catch (error) {
-      console.error('채팅방 삭제 실패 (Subscriber):', error);
+      await connection.rollback();
+      console.error('채팅방 삭제 실패 (Subscriber Repository):', error);
       throw error;
+    } finally {
+        connection.release();
     }
   }
 }

@@ -37,12 +37,13 @@ class RoomService {
   }
   
   // 채팅방 삭제 (Kafka에서 이벤트를 받아 처리)
-  async deleteRoom(name) {
+  async deleteRoom(name, userId) {
     try {
-      // Repository를 통해 DB에서 채팅방 삭제
-      return await roomRepository.deleteRoom(name);
+      // Repository를 통해 DB에서 채팅방 삭제 (이제 userId도 전달)
+      return await roomRepository.deleteRoom(name, userId);
     } catch (error) {
-      console.error('채팅방 삭제 실패 (Subscriber):', error);
+      // Log the specific error from the repository
+      console.error('채팅방 삭제 실패 (Subscriber Service):', error.message); 
       throw error;
     }
   }

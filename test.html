@@ -378,7 +378,7 @@
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ name: currentRoom })
+          body: JSON.stringify({ name: currentRoom, userId: currentUserId })
         });
         
         const data = await response.json();
