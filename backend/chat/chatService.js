@@ -99,19 +99,6 @@ class ChatService {
     }
   }
 
-  // 메시지 저장
-  async saveMessage(messageData) {
-    try {
-      const messageId = await chatModel.saveMessage(messageData);
-      
-      logger.info(`메시지 저장 완료: 방 ${messageData.roomId}, 메시지 ID ${messageId}`);
-      return messageId;
-    } catch (error) {
-      logger.error('메시지 저장 서비스 오류:', error);
-      throw error;
-    }
-  }
-
   // 메시지 목록 조회
   async getMessages(roomId, filters = {}) {
     try {
@@ -157,19 +144,11 @@ class ChatService {
   // 실시간 메시지 처리 (Socket.IO와 연동)
   async handleRealTimeMessage(socket, messageData) {
     try {
-      // 메시지 저장
-      const messageId = await this.saveMessage({
-        roomId: messageData.room,
-        userId: messageData.userId || socket.userId,
-        message: messageData.message,
-        messageType: messageData.type || 'text'
-      });
-
-      // 저장된 메시지 정보 반환
+      // DB 저장은 subscriber에서 처리하므로 제거
+      // Kafka 발행만 처리
       return {
-        id: messageId,
         ...messageData,
-        saved: true
+        processed: true
       };
     } catch (error) {
       logger.error('실시간 메시지 처리 오류:', error);

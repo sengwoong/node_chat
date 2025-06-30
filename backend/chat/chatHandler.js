@@ -86,16 +86,17 @@ function handleMessage(socket, io, msg, kafkaProducer) {
   }
   
   const messageData = {
-    type: constants.MESSAGE_TYPES.CHAT,
+    type: 'message', // subscriber에서 인식할 수 있도록 타입 명시
     name: socket.username,
     message: msg.message.trim(),
     room: socket.currentRoom,
-    when: new Date()
+    when: new Date(),
+    userId: socket.userId || null // 사용자 ID 추가
   };
   
   logger.info('메시지 수신 및 Kafka로 발행:', messageData);
   
-  // Kafka에 메시지 발행
+  // Kafka에만 메시지 발행 (DB 저장은 subscriber에서 처리)
   if (kafkaProducer) {
     kafkaProducer.send({
       topic: 'chat',
@@ -103,7 +104,7 @@ function handleMessage(socket, io, msg, kafkaProducer) {
     }).catch(err => logger.error('Kafka 메시지 발행 실패:', err));
   }
   
-  // 같은 방의 모든 클라이언트에게 메시지 전송
+  // 같은 방의 모든 클라이언트에게 즉시 메시지 전송 (실시간성 유지)
   io.to(socket.currentRoom).emit('message', messageData);
 }
 
