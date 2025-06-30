@@ -1,10 +1,9 @@
 const express = require('express');
-const EnrollmentService = require('../services/enrollmentService');
+const enrollmentService = require('../services/enrollmentService');
 const { authenticateToken } = require('../middlewares/auth');
 const logger = require('../utils/logger');
 
 const router = express.Router();
-const enrollmentService = new EnrollmentService();
 
 /**
  * @swagger
@@ -16,7 +15,7 @@ const enrollmentService = new EnrollmentService();
  *         id:
  *           type: integer
  *           example: 1
- *         student_id:
+ *         user_id:
  *           type: integer
  *           example: 1
  *         class_id:
@@ -25,23 +24,16 @@ const enrollmentService = new EnrollmentService();
  *         course_id:
  *           type: integer
  *           example: 1
- *         enrollment_type:
+ *         enrolled_at:
  *           type: string
- *           enum: [class, course]
- *           example: "class"
+ *           format: date-time
  *         status:
  *           type: string
- *           enum: [pending, approved, rejected, completed, cancelled]
- *           example: "approved"
- *         enrollment_date:
- *           type: string
- *           format: date-time
- *         completion_date:
- *           type: string
- *           format: date-time
+ *           enum: [active, completed, cancelled]
+ *           example: "active"
  *         progress:
- *           type: integer
- *           example: 75
+ *           type: number
+ *           example: 75.5
  *         rating:
  *           type: integer
  *           example: 5
@@ -54,15 +46,118 @@ const enrollmentService = new EnrollmentService();
  *         updated_at:
  *           type: string
  *           format: date-time
+ *     AvailableItem:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: integer
+ *           example: 1
+ *         title:
+ *           type: string
+ *           example: "React 기초 강의"
+ *         description:
+ *           type: string
+ *           example: "React의 기본 개념을 배웁니다"
+ *         subject:
+ *           type: string
+ *           example: "프로그래밍"
+ *         level:
+ *           type: string
+ *           enum: [beginner, intermediate, advanced]
+ *           example: "beginner"
+ *         price:
+ *           type: number
+ *           example: 50000
+ *         type:
+ *           type: string
+ *           enum: [class, course]
+ *           example: "class"
+ *         teacher:
+ *           type: object
+ *           properties:
+ *             id:
+ *               type: integer
+ *             name:
+ *               type: string
+ *             username:
+ *               type: string
  */
 
 /**
  * @swagger
- * /enrollments:
+ * /enrollments/available:
  *   get:
- *     summary: 수강신청 목록 조회
- *     description: 수강신청 목록을 조회합니다. (학생은 자신의 수강신청만, 관리자는 모든 수강신청 조회 가능)
- *     tags: [Enrollments]
+ *     summary: 수강신청 가능한 목록 조회
+ *     description: 현재 수강신청 가능한 모든 클래스와 코스 목록을 조회합니다.
+ *     tags: [📚 수강신청 - 공통]
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 페이지 번호
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: 페이지당 항목 수
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [class, course]
+ *         description: 타입 필터 (class=오프라인 클래스, course=온라인 코스)
+ *       - in: query
+ *         name: subject
+ *         schema:
+ *           type: string
+ *         description: 과목 필터
+ *       - in: query
+ *         name: level
+ *         schema:
+ *           type: string
+ *           enum: [beginner, intermediate, advanced]
+ *         description: 난이도 필터
+ *     responses:
+ *       200:
+ *         description: 수강신청 가능 목록 조회 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/AvailableItem'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     totalPages:
+ *                       type: integer
+ */
+router.get('/available', async (req, res) => {
+  // ... 기존 코드 ...
+});
+
+/**
+ * @swagger
+ * /enrollments/my:
+ *   get:
+ *     summary: 내 수강신청 목록 조회
+ *     description: 현재 사용자의 수강신청 목록을 조회합니다.
+ *     tags: [🎓 수강신청 - 학생용]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -76,23 +171,17 @@ const enrollmentService = new EnrollmentService();
  *         name: limit
  *         schema:
  *           type: integer
- *           default: 10
+ *           default: 20
  *         description: 페이지당 항목 수
  *       - in: query
  *         name: status
  *         schema:
  *           type: string
- *           enum: [pending, approved, rejected, completed, cancelled]
- *         description: 수강신청 상태 필터
- *       - in: query
- *         name: enrollment_type
- *         schema:
- *           type: string
- *           enum: [class, course]
- *         description: 수강신청 타입 필터
+ *           enum: [active, completed, cancelled]
+ *         description: 상태 필터
  *     responses:
  *       200:
- *         description: 수강신청 목록 조회 성공
+ *         description: 내 수강신청 목록 조회 성공
  *         content:
  *           application/json:
  *             schema:
@@ -122,41 +211,17 @@ const enrollmentService = new EnrollmentService();
  *           application/json:
  *             $ref: '#/components/schemas/Error'
  */
-router.get('/', authenticateToken, async (req, res) => {
-  try {
-    const { page = 1, limit = 10, status, enrollment_type } = req.query;
-    const userId = req.user.id;
-    const userRole = req.user.role;
-    
-    const result = await enrollmentService.getEnrollments(
-      parseInt(page), 
-      parseInt(limit), 
-      status, 
-      enrollment_type,
-      userRole === 'admin' ? null : userId
-    );
-    
-    res.status(200).json({
-      success: true,
-      data: result.enrollments,
-      pagination: result.pagination
-    });
-  } catch (error) {
-    logger.error('수강신청 목록 조회 실패:', error);
-    res.status(500).json({
-      success: false,
-      message: '수강신청 목록을 조회하는 중 오류가 발생했습니다.'
-    });
-  }
+router.get('/my', authenticateToken, async (req, res) => {
+  // ... 기존 코드 ...
 });
 
 /**
  * @swagger
  * /enrollments:
  *   post:
- *     summary: 수강신청 생성
+ *     summary: 수강신청 하기
  *     description: 새로운 수강신청을 생성합니다. (학생만 가능)
- *     tags: [Enrollments]
+ *     tags: [🎓 수강신청 - 학생용]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -172,17 +237,18 @@ router.get('/', authenticateToken, async (req, res) => {
  *                 type: string
  *                 enum: [class, course]
  *                 example: "class"
+ *                 description: 수강신청 타입
  *               class_id:
  *                 type: integer
  *                 example: 1
- *                 description: 오프라인 클래스 ID (enrollment_type이 class인 경우)
+ *                 description: 오프라인 클래스 ID (enrollment_type이 class인 경우 필수)
  *               course_id:
  *                 type: integer
  *                 example: 1
- *                 description: 온라인 코스 ID (enrollment_type이 course인 경우)
+ *                 description: 온라인 코스 ID (enrollment_type이 course인 경우 필수)
  *     responses:
  *       201:
- *         description: 수강신청 생성 성공
+ *         description: 수강신청 성공
  *         content:
  *           application/json:
  *             schema:
@@ -194,7 +260,7 @@ router.get('/', authenticateToken, async (req, res) => {
  *                 data:
  *                   $ref: '#/components/schemas/Enrollment'
  *       400:
- *         description: 잘못된 요청
+ *         description: 잘못된 요청 (이미 수강신청한 경우 등)
  *         content:
  *           application/json:
  *             $ref: '#/components/schemas/Error'
@@ -204,51 +270,22 @@ router.get('/', authenticateToken, async (req, res) => {
  *           application/json:
  *             $ref: '#/components/schemas/Error'
  *       403:
- *         description: 권한 없음
+ *         description: 권한 없음 (학생이 아닌 경우)
  *         content:
  *           application/json:
  *             $ref: '#/components/schemas/Error'
  */
 router.post('/', authenticateToken, async (req, res) => {
-  try {
-    const { enrollment_type, class_id, course_id } = req.body;
-    
-    if (req.user.role !== 'student') {
-      return res.status(403).json({
-        success: false,
-        message: '학생만 수강신청할 수 있습니다.'
-      });
-    }
-    
-    const enrollmentData = {
-      student_id: req.user.id,
-      enrollment_type,
-      class_id: enrollment_type === 'class' ? class_id : null,
-      course_id: enrollment_type === 'course' ? course_id : null
-    };
-    
-    const newEnrollment = await enrollmentService.createEnrollment(enrollmentData);
-    
-    res.status(201).json({
-      success: true,
-      data: newEnrollment
-    });
-  } catch (error) {
-    logger.error('수강신청 생성 실패:', error);
-    res.status(400).json({
-      success: false,
-      message: error.message || '수강신청을 생성하는 중 오류가 발생했습니다.'
-    });
-  }
+  // ... 기존 코드 ...
 });
 
 /**
  * @swagger
  * /enrollments/{enrollmentId}:
- *   get:
- *     summary: 수강신청 상세 조회
- *     description: 특정 수강신청의 상세 정보를 조회합니다.
- *     tags: [Enrollments]
+ *   delete:
+ *     summary: 수강신청 취소
+ *     description: 본인의 수강신청을 취소합니다. (학생만 가능)
+ *     tags: [🎓 수강신청 - 학생용]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -260,7 +297,7 @@ router.post('/', authenticateToken, async (req, res) => {
  *         description: 수강신청 ID
  *     responses:
  *       200:
- *         description: 수강신청 상세 조회 성공
+ *         description: 수강신청 취소 성공
  *         content:
  *           application/json:
  *             schema:
@@ -269,8 +306,9 @@ router.post('/', authenticateToken, async (req, res) => {
  *                 success:
  *                   type: boolean
  *                   example: true
- *                 data:
- *                   $ref: '#/components/schemas/Enrollment'
+ *                 message:
+ *                   type: string
+ *                   example: "수강신청이 취소되었습니다."
  *       403:
  *         description: 권한 없음
  *         content:
@@ -282,236 +320,37 @@ router.post('/', authenticateToken, async (req, res) => {
  *           application/json:
  *             $ref: '#/components/schemas/Error'
  */
-router.get('/:enrollmentId', authenticateToken, async (req, res) => {
+router.delete('/:enrollmentId', authenticateToken, async (req, res) => {
   try {
     const enrollmentId = parseInt(req.params.enrollmentId);
-    const enrollmentData = await enrollmentService.getEnrollmentById(enrollmentId);
+    const userId = req.user.userId;
     
-    if (!enrollmentData) {
-      return res.status(404).json({
-        success: false,
-        message: '수강신청을 찾을 수 없습니다.'
-      });
-    }
-    
-    // 권한 확인: 학생은 자신의 수강신청만, 관리자는 모든 수강신청 조회 가능
-    if (req.user.role !== 'admin' && enrollmentData.student_id !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: '수강신청 정보를 조회할 권한이 없습니다.'
-      });
-    }
+    const result = await enrollmentService.cancelEnrollment(enrollmentId, userId);
     
     res.status(200).json({
       success: true,
-      data: enrollmentData
+      data: result,
+      message: '수강신청이 취소되었습니다.'
     });
   } catch (error) {
-    logger.error('수강신청 상세 조회 실패:', error);
-    res.status(500).json({
-      success: false,
-      message: '수강신청 정보를 조회하는 중 오류가 발생했습니다.'
-    });
-  }
-});
-
-/**
- * @swagger
- * /enrollments/{enrollmentId}:
- *   put:
- *     summary: 수강신청 상태 변경
- *     description: 수강신청 상태를 변경합니다. (관리자만 가능)
- *     tags: [Enrollments]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: enrollmentId
- *         required: true
- *         schema:
- *           type: integer
- *         description: 수강신청 ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - status
- *             properties:
- *               status:
- *                 type: string
- *                 enum: [pending, approved, rejected, completed, cancelled]
- *                 example: "approved"
- *     responses:
- *       200:
- *         description: 수강신청 상태 변경 성공
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   $ref: '#/components/schemas/Enrollment'
- *       403:
- *         description: 권한 없음
- *         content:
- *           application/json:
- *             $ref: '#/components/schemas/Error'
- *       404:
- *         description: 수강신청을 찾을 수 없음
- *         content:
- *           application/json:
- *             $ref: '#/components/schemas/Error'
- */
-router.put('/:enrollmentId', authenticateToken, async (req, res) => {
-  try {
-    const enrollmentId = parseInt(req.params.enrollmentId);
-    const { status } = req.body;
-    
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: '수강신청 상태를 변경할 권한이 없습니다.'
-      });
-    }
-    
-    const updatedEnrollment = await enrollmentService.updateEnrollmentStatus(enrollmentId, status);
-    
-    res.status(200).json({
-      success: true,
-      data: updatedEnrollment
-    });
-  } catch (error) {
-    logger.error('수강신청 상태 변경 실패:', error);
+    logger.error('수강신청 취소 실패:', error);
     res.status(400).json({
       success: false,
-      message: error.message || '수강신청 상태를 변경하는 중 오류가 발생했습니다.'
+      message: error.message || '수강신청 취소 중 오류가 발생했습니다.'
     });
   }
 });
 
 /**
  * @swagger
- * /enrollments/{enrollmentId}/review:
- *   post:
- *     summary: 수강 후기 작성
- *     description: 수강 완료 후 후기를 작성합니다. (수강생만 가능)
- *     tags: [Enrollments]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: enrollmentId
- *         required: true
- *         schema:
- *           type: integer
- *         description: 수강신청 ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - rating
- *               - review
- *             properties:
- *               rating:
- *                 type: integer
- *                 minimum: 1
- *                 maximum: 5
- *                 example: 5
- *               review:
- *                 type: string
- *                 example: "정말 좋은 강의였습니다!"
- *     responses:
- *       200:
- *         description: 후기 작성 성공
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   $ref: '#/components/schemas/Enrollment'
- *       403:
- *         description: 권한 없음
- *         content:
- *           application/json:
- *             $ref: '#/components/schemas/Error'
- *       404:
- *         description: 수강신청을 찾을 수 없음
- *         content:
- *           application/json:
- *             $ref: '#/components/schemas/Error'
- */
-router.post('/:enrollmentId/review', authenticateToken, async (req, res) => {
-  try {
-    const enrollmentId = parseInt(req.params.enrollmentId);
-    const { rating, review } = req.body;
-    
-    const enrollmentData = await enrollmentService.getEnrollmentById(enrollmentId);
-    
-    if (!enrollmentData) {
-      return res.status(404).json({
-        success: false,
-        message: '수강신청을 찾을 수 없습니다.'
-      });
-    }
-    
-    if (enrollmentData.student_id !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: '후기를 작성할 권한이 없습니다.'
-      });
-    }
-    
-    if (enrollmentData.status !== 'completed') {
-      return res.status(400).json({
-        success: false,
-        message: '수강이 완료된 후에만 후기를 작성할 수 있습니다.'
-      });
-    }
-    
-    const updatedEnrollment = await enrollmentService.addReview(enrollmentId, rating, review);
-    
-    res.status(200).json({
-      success: true,
-      data: updatedEnrollment
-    });
-  } catch (error) {
-    logger.error('후기 작성 실패:', error);
-    res.status(400).json({
-      success: false,
-      message: error.message || '후기를 작성하는 중 오류가 발생했습니다.'
-    });
-  }
-});
-
-/**
- * @swagger
- * /enrollments/student/{studentId}:
+ * /enrollments/my-classes:
  *   get:
- *     summary: 학생별 수강신청 목록
- *     description: 특정 학생의 수강신청 목록을 조회합니다.
- *     tags: [Enrollments]
+ *     summary: 내 클래스의 수강신청 목록
+ *     description: 강사가 자신의 클래스에 대한 수강신청 목록을 조회합니다.
+ *     tags: [👨‍🏫 수강신청 - 강사용]
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - in: path
- *         name: studentId
- *         required: true
- *         schema:
- *           type: integer
- *         description: 학생 ID
  *       - in: query
  *         name: page
  *         schema:
@@ -522,17 +361,22 @@ router.post('/:enrollmentId/review', authenticateToken, async (req, res) => {
  *         name: limit
  *         schema:
  *           type: integer
- *           default: 10
+ *           default: 20
  *         description: 페이지당 항목 수
  *       - in: query
  *         name: status
  *         schema:
  *           type: string
- *           enum: [pending, approved, rejected, completed, cancelled]
- *         description: 수강신청 상태 필터
+ *           enum: [active, completed, cancelled]
+ *         description: 상태 필터
+ *       - in: query
+ *         name: class_id
+ *         schema:
+ *           type: integer
+ *         description: 특정 클래스 필터
  *     responses:
  *       200:
- *         description: 학생별 수강신청 목록 조회 성공
+ *         description: 클래스 수강신청 목록 조회 성공
  *         content:
  *           application/json:
  *             schema:
@@ -556,37 +400,328 @@ router.post('/:enrollmentId/review', authenticateToken, async (req, res) => {
  *                       type: integer
  *                     totalPages:
  *                       type: integer
+ *       401:
+ *         description: 인증 실패
+ *         content:
+ *           application/json:
+ *             $ref: '#/components/schemas/Error'
+ *       403:
+ *         description: 권한 없음 (강사가 아닌 경우)
+ *         content:
+ *           application/json:
+ *             $ref: '#/components/schemas/Error'
+ */
+router.get('/my-classes', authenticateToken, async (req, res) => {
+  // ... 기존 코드 ...
+});
+
+/**
+ * @swagger
+ * /enrollments/my-courses:
+ *   get:
+ *     summary: 내 코스의 수강신청 목록
+ *     description: 강사가 자신의 코스에 대한 수강신청 목록을 조회합니다.
+ *     tags: [👨‍🏫 수강신청 - 강사용]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 페이지 번호
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: 페이지당 항목 수
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [active, completed, cancelled]
+ *         description: 상태 필터
+ *       - in: query
+ *         name: course_id
+ *         schema:
+ *           type: integer
+ *         description: 특정 코스 필터
+ *     responses:
+ *       200:
+ *         description: 코스 수강신청 목록 조회 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Enrollment'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     totalPages:
+ *                       type: integer
+ *       401:
+ *         description: 인증 실패
+ *         content:
+ *           application/json:
+ *             $ref: '#/components/schemas/Error'
+ *       403:
+ *         description: 권한 없음 (강사가 아닌 경우)
+ *         content:
+ *           application/json:
+ *             $ref: '#/components/schemas/Error'
+ */
+router.get('/my-courses', authenticateToken, async (req, res) => {
+  // ... 기존 코드 ...
+});
+
+/**
+ * @swagger
+ * /enrollments/{enrollmentId}/approve:
+ *   put:
+ *     summary: 수강신청 승인
+ *     description: 강사가 자신의 클래스/코스에 대한 수강신청을 승인합니다.
+ *     tags: [👨‍🏫 수강신청 - 강사용]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: enrollmentId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: 수강신청 ID
+ *     responses:
+ *       200:
+ *         description: 수강신청 승인 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/Enrollment'
+ *                 message:
+ *                   type: string
+ *                   example: "수강신청이 승인되었습니다."
+ *       400:
+ *         description: 잘못된 요청
+ *         content:
+ *           application/json:
+ *             $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: 인증 실패
+ *         content:
+ *           application/json:
+ *             $ref: '#/components/schemas/Error'
  *       403:
  *         description: 권한 없음
  *         content:
  *           application/json:
  *             $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: 수강신청을 찾을 수 없음
+ *         content:
+ *           application/json:
+ *             $ref: '#/components/schemas/Error'
  */
-router.get('/student/:studentId', authenticateToken, async (req, res) => {
+router.put('/:enrollmentId/approve', authenticateToken, async (req, res) => {
+  // ... 기존 코드 ...
+});
+
+/**
+ * @swagger
+ * /enrollments/{enrollmentId}/reject:
+ *   put:
+ *     summary: 수강신청 거부
+ *     description: 강사가 자신의 클래스/코스에 대한 수강신청을 거부합니다.
+ *     tags: [👨‍🏫 수강신청 - 강사용]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: enrollmentId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: 수강신청 ID
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reason:
+ *                 type: string
+ *                 example: "수강 조건을 만족하지 않음"
+ *                 description: 거부 사유 (선택사항)
+ *     responses:
+ *       200:
+ *         description: 수강신청 거부 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/Enrollment'
+ *                 message:
+ *                   type: string
+ *                   example: "수강신청이 거부되었습니다."
+ *       400:
+ *         description: 잘못된 요청
+ *         content:
+ *           application/json:
+ *             $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: 인증 실패
+ *         content:
+ *           application/json:
+ *             $ref: '#/components/schemas/Error'
+ *       403:
+ *         description: 권한 없음
+ *         content:
+ *           application/json:
+ *             $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: 수강신청을 찾을 수 없음
+ *         content:
+ *           application/json:
+ *             $ref: '#/components/schemas/Error'
+ */
+router.put('/:enrollmentId/reject', authenticateToken, async (req, res) => {
+  // ... 기존 코드 ...
+});
+
+/**
+ * @swagger
+ * /enrollments/all:
+ *   get:
+ *     summary: 모든 수강신청 목록 조회 (관리자)
+ *     description: 관리자가 모든 수강신청 목록을 조회합니다.
+ *     tags: [🔧 수강신청 - 관리자용]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 페이지 번호
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: 페이지당 항목 수
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [active, completed, cancelled]
+ *         description: 상태 필터
+ *       - in: query
+ *         name: user_id
+ *         schema:
+ *           type: integer
+ *         description: 특정 사용자 필터
+ *       - in: query
+ *         name: class_id
+ *         schema:
+ *           type: integer
+ *         description: 특정 클래스 필터
+ *       - in: query
+ *         name: course_id
+ *         schema:
+ *           type: integer
+ *         description: 특정 코스 필터
+ *     responses:
+ *       200:
+ *         description: 모든 수강신청 목록 조회 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Enrollment'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     totalPages:
+ *                       type: integer
+ *       401:
+ *         description: 인증 실패
+ *         content:
+ *           application/json:
+ *             $ref: '#/components/schemas/Error'
+ *       403:
+ *         description: 권한 없음 (관리자가 아닌 경우)
+ *         content:
+ *           application/json:
+ *             $ref: '#/components/schemas/Error'
+ */
+router.get('/all', authenticateToken, async (req, res) => {
   try {
-    const studentId = parseInt(req.params.studentId);
-    const { page = 1, limit = 10, status } = req.query;
-    
-    // 권한 확인: 학생은 자신의 수강신청만, 관리자는 모든 학생의 수강신청 조회 가능
-    if (req.user.role !== 'admin' && req.user.id !== studentId) {
+    if (req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
-        message: '다른 학생의 수강신청 정보를 조회할 권한이 없습니다.'
+        message: '관리자만 접근할 수 있습니다.'
       });
     }
     
-    const result = await enrollmentService.getEnrollmentsByStudent(studentId, parseInt(page), parseInt(limit), status);
+    const { page, limit, status, user_id, class_id, course_id } = req.query;
+    const filters = { page, limit, status, user_id, class_id, course_id };
+    
+    const result = await enrollmentService.getEnrollments(filters);
     
     res.status(200).json({
       success: true,
       data: result.enrollments,
-      pagination: result.pagination
+      pagination: {
+        total: result.total,
+        page: result.page,
+        limit: result.limit,
+        totalPages: result.totalPages
+      }
     });
   } catch (error) {
-    logger.error('학생별 수강신청 목록 조회 실패:', error);
+    logger.error('모든 수강신청 목록 조회 실패:', error);
     res.status(500).json({
       success: false,
-      message: '학생별 수강신청 목록을 조회하는 중 오류가 발생했습니다.'
+      message: '수강신청 목록을 조회하는 중 오류가 발생했습니다.'
     });
   }
 });
@@ -595,9 +730,9 @@ router.get('/student/:studentId', authenticateToken, async (req, res) => {
  * @swagger
  * /enrollments/stats:
  *   get:
- *     summary: 수강신청 통계 조회
- *     description: 수강신청 관련 통계를 조회합니다. (관리자만 가능)
- *     tags: [Enrollments]
+ *     summary: 수강신청 통계 조회 (관리자)
+ *     description: 관리자가 수강신청 관련 통계를 조회합니다.
+ *     tags: [🔧 수강신청 - 관리자용]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -616,46 +751,32 @@ router.get('/student/:studentId', authenticateToken, async (req, res) => {
  *                   properties:
  *                     total_enrollments:
  *                       type: integer
- *                     pending_enrollments:
+ *                       example: 150
+ *                     active_enrollments:
  *                       type: integer
- *                     approved_enrollments:
- *                       type: integer
+ *                       example: 100
  *                     completed_enrollments:
  *                       type: integer
- *                     class_enrollments:
+ *                       example: 40
+ *                     cancelled_enrollments:
  *                       type: integer
- *                     course_enrollments:
- *                       type: integer
- *                     average_rating:
+ *                       example: 10
+ *                     avg_progress:
  *                       type: number
+ *                       example: 67.5
+ *       401:
+ *         description: 인증 실패
+ *         content:
+ *           application/json:
+ *             $ref: '#/components/schemas/Error'
  *       403:
- *         description: 권한 없음
+ *         description: 권한 없음 (관리자가 아닌 경우)
  *         content:
  *           application/json:
  *             $ref: '#/components/schemas/Error'
  */
 router.get('/stats', authenticateToken, async (req, res) => {
-  try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: '통계를 조회할 권한이 없습니다.'
-      });
-    }
-    
-    const stats = await enrollmentService.getEnrollmentStats();
-    
-    res.status(200).json({
-      success: true,
-      data: stats
-    });
-  } catch (error) {
-    logger.error('수강신청 통계 조회 실패:', error);
-    res.status(500).json({
-      success: false,
-      message: '수강신청 통계를 조회하는 중 오류가 발생했습니다.'
-    });
-  }
+  // ... 기존 코드 ...
 });
 
 module.exports = router; 

@@ -28,7 +28,7 @@ class EnrollmentService {
           {
             model: Class,
             as: 'class',
-            attributes: ['id', 'title', 'category'],
+            attributes: ['id', 'title', 'subject'],
             required: false
           },
           {
@@ -132,7 +132,7 @@ class EnrollmentService {
           {
             model: Class,
             as: 'class',
-            attributes: ['id', 'title', 'category'],
+            attributes: ['id', 'title', 'subject'],
             required: false
           },
           {
@@ -225,7 +225,7 @@ class EnrollmentService {
           {
             model: Class,
             as: 'class',
-            attributes: ['id', 'title', 'category'],
+            attributes: ['id', 'title', 'subject'],
             required: false
           },
           {
@@ -309,4 +309,3 @@ class EnrollmentService {
 }
 
 module.exports = new EnrollmentService(); 
-module.exports = EnrollmentService; 
