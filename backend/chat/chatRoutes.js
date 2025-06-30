@@ -83,21 +83,6 @@ const router = express.Router();
  *         joined_at:
  *           type: string
  *           format: date-time
- *     ChatStats:
- *       type: object
- *       properties:
- *         total_rooms:
- *           type: integer
- *           example: 10
- *         total_messages:
- *           type: integer
- *           example: 1500
- *         total_users:
- *           type: integer
- *           example: 25
- *         total_participations:
- *           type: integer
- *           example: 100
  */
 
 /**
@@ -220,7 +205,7 @@ router.get('/rooms', optionalAuth, asyncHandler(async (req, res) => {
  */
 router.post('/rooms', authenticateToken, asyncHandler(async (req, res) => {
   const { name, description, isPrivate, maxParticipants } = req.body;
-  const userId = req.user.id;
+  const userId = req.user.userId;
   
   if (!name) {
     return res.status(constants.HTTP_STATUS.BAD_REQUEST).json({
@@ -332,7 +317,7 @@ router.get('/rooms/:roomId', optionalAuth, asyncHandler(async (req, res) => {
  */
 router.post('/rooms/:roomId/join', authenticateToken, asyncHandler(async (req, res) => {
   const { roomId } = req.params;
-  const userId = req.user.id;
+  const userId = req.user.userId;
   
   await chatService.joinRoom(parseInt(roomId), userId);
   
@@ -380,7 +365,7 @@ router.post('/rooms/:roomId/join', authenticateToken, asyncHandler(async (req, r
  */
 router.post('/rooms/:roomId/leave', authenticateToken, asyncHandler(async (req, res) => {
   const { roomId } = req.params;
-  const userId = req.user.id;
+  const userId = req.user.userId;
   
   await chatService.leaveRoom(parseInt(roomId), userId);
   
@@ -550,50 +535,13 @@ router.get('/rooms/:roomId/participants', optionalAuth, asyncHandler(async (req,
  */
 router.delete('/rooms/:roomId', authenticateToken, asyncHandler(async (req, res) => {
   const { roomId } = req.params;
-  const userId = req.user.id;
+  const userId = req.user.userId;
   
   await chatService.deleteRoom(parseInt(roomId), userId);
   
   res.status(constants.HTTP_STATUS.OK).json({
     success: true,
     message: '채팅방이 삭제되었습니다'
-  });
-}));
-
-/**
- * @swagger
- * /chat/stats:
- *   get:
- *     summary: 채팅 통계 조회
- *     description: 채팅 시스템의 통계 정보를 조회합니다.
- *     tags: [Chat]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: 채팅 통계
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   $ref: '#/components/schemas/ChatStats'
- *       401:
- *         description: 인증 실패
- *         content:
- *           application/json:
- *             $ref: '#/components/schemas/Error'
- */
-router.get('/stats', authenticateToken, asyncHandler(async (req, res) => {
-  const stats = await chatService.getChatStats();
-  
-  res.status(constants.HTTP_STATUS.OK).json({
-    success: true,
-    data: stats
   });
 }));
 

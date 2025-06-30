@@ -239,28 +239,6 @@ class ChatModel {
       throw error;
     }
   }
-
-  // 채팅 통계 조회
-  async getChatStats() {
-    try {
-      const [totalRooms, totalMessages, totalUsers, totalParticipations] = await Promise.all([
-        ChatRoom.count(),
-        ChatMessage.count(),
-        ChatParticipant.count({ distinct: true, col: 'user_id' }),
-        ChatParticipant.count()
-      ]);
-
-      return {
-        total_rooms: totalRooms,
-        total_messages: totalMessages,
-        total_users: totalUsers,
-        total_participations: totalParticipations
-      };
-    } catch (error) {
-      logger.error('채팅 통계 조회 실패:', error);
-      throw error;
-    }
-  }
 }
 
 module.exports = new ChatModel(); 
