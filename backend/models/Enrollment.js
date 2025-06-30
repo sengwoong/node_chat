@@ -42,19 +42,32 @@ const Enrollment = sequelize.define('Enrollment', {
   progress: {
     type: DataTypes.DECIMAL(5, 2),
     defaultValue: 0.00
+  },
+  rating: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    validate: {
+      min: 1,
+      max: 5
+    }
+  },
+  review: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  created_at: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  },
+  updated_at: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
   }
 }, {
   tableName: 'enrollments',
-  timestamps: false,
-  indexes: [
-    {
-      unique: true,
-      fields: ['user_id', 'class_id', 'course_id']
-    },
-    { fields: ['user_id'] },
-    { fields: ['class_id'] },
-    { fields: ['course_id'] }
-  ]
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: 'updated_at'
 });
 
 module.exports = Enrollment; 

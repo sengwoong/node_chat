@@ -50,8 +50,56 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
+// 개선된 JSON 파싱 미들웨어
+app.use(express.json({ 
+  limit: '10mb',
+  verify: (req, res, buf, encoding) => {
+    // 원본 body를 저장하여 오류 시 디버깅에 사용
+    req.rawBody = buf.toString();
+  }
+}));
+
+// JSON 파싱 오류 처리 미들웨어 (express.json() 바로 다음에 추가)
+app.use((error, req, res, next) => {
+  if (error instanceof SyntaxError && error.status === 400 && 'body' in error) {
+    const position = error.message.match(/position (\d+)/)?.[1];
+    const rawBody = req.rawBody || '';
+    
+    console.error('🚨 JSON 파싱 오류 상세 정보:');
+    console.error('URL:', req.method, req.url);
+    console.error('오류 메시지:', error.message);
+    console.error('오류 위치:', position);
+    console.error('Content-Type:', req.headers['content-type']);
+    console.error('Content-Length:', req.headers['content-length']);
+    
+    if (rawBody) {
+      console.error('원본 Body (처음 300자):');
+      console.error(rawBody.substring(0, 300));
+      
+      if (position) {
+        const pos = parseInt(position);
+        const start = Math.max(0, pos - 50);
+        const end = Math.min(rawBody.length, pos + 50);
+        console.error(`오류 주변 텍스트 (${start}-${end}):`);
+        console.error(rawBody.substring(start, end));
+        console.error(' '.repeat(Math.max(0, pos - start)) + '^--- 오류 위치');
+      }
+    }
+    
+    return res.status(400).json({
+      success: false,
+      message: '잘못된 JSON 형식입니다. 요청 데이터를 확인해주세요.',
+      error: {
+        type: 'JSON_PARSE_ERROR',
+        position: position,
+        details: error.message
+      }
+    });
+  }
+  next(error);
+});
+
 // 기본 미들웨어
-app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // 정적 파일 서빙

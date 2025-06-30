@@ -50,9 +50,9 @@ async function setupDatabase() {
       throw new Error('데이터베이스 연결 실패');
     }
 
-    // 모델 동기화 (기존 테이블 구조 유지)
-    await sequelize.sync({ alter: false, force: false });
-    logger.info('데이터베이스 모델 동기화 완료');
+    // 모델 동기화 비활성화 - 이미 init.sql로 테이블이 생성됨
+    // await sequelize.sync({ alter: false, force: false });
+    logger.info('데이터베이스 연결 완료 (스키마 동기화 스킵)');
     
     return true;
   } catch (error) {

@@ -8,11 +8,11 @@ class CourseService {
    */
   async getCourses(filters = {}) {
     try {
-      const { page = 1, limit = 20, subject, level, teacher_id, status = 'published', search } = filters;
+      const { page = 1, limit = 20, subject, level, teacher_id, status, search } = filters;
       const offset = (page - 1) * limit;
       
       const whereClause = {};
-      if (status) whereClause.status = status;
+      if (status !== undefined) whereClause.status = status;
       if (subject) whereClause.subject = subject;
       if (level) whereClause.level = level;
       if (teacher_id) whereClause.teacher_id = teacher_id;
@@ -264,97 +264,6 @@ class CourseService {
       return popularCourses;
     } catch (error) {
       logger.error('인기 코스 조회 실패:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * 코스 섹션 목록 조회
-   */
-  async getCourseSections(courseId) {
-    try {
-      const { CourseSection } = require('../models');
-      
-      const sections = await CourseSection.findAll({
-        where: { course_id: courseId },
-        order: [['order_index', 'ASC']]
-      });
-      
-      return sections;
-    } catch (error) {
-      logger.error('코스 섹션 목록 조회 실패:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * 코스 섹션 추가
-   */
-  async addCourseSection(sectionData) {
-    try {
-      const { CourseSection } = require('../models');
-      
-      // 필수 필드 검증
-      const requiredFields = ['title', 'course_id', 'order_index'];
-      for (const field of requiredFields) {
-        if (!sectionData[field]) {
-          throw new Error(`${field} 필드는 필수입니다.`);
-        }
-      }
-
-      const newSection = await CourseSection.create(sectionData);
-      logger.info(`새로운 섹션이 생성되었습니다: ${newSection.id}`);
-      
-      return newSection.toJSON();
-    } catch (error) {
-      logger.error('코스 섹션 추가 실패:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * 코스 섹션 수정
-   */
-  async updateCourseSection(sectionId, updateData) {
-    try {
-      const { CourseSection } = require('../models');
-      
-      const [updatedRows] = await CourseSection.update(updateData, {
-        where: { id: sectionId }
-      });
-      
-      if (updatedRows === 0) {
-        throw new Error('섹션을 찾을 수 없습니다.');
-      }
-
-      const updatedSection = await CourseSection.findByPk(sectionId);
-      logger.info(`섹션이 수정되었습니다: ${sectionId}`);
-      return updatedSection.toJSON();
-    } catch (error) {
-      logger.error('코스 섹션 수정 실패:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * 코스 섹션 삭제
-   */
-  async deleteCourseSection(sectionId) {
-    try {
-      const { CourseSection } = require('../models');
-      
-      const result = await CourseSection.destroy({
-        where: { id: sectionId }
-      });
-      
-      if (result === 0) {
-        throw new Error('섹션을 찾을 수 없습니다.');
-      }
-
-      logger.info(`섹션이 삭제되었습니다: ${sectionId}`);
-      return true;
-    } catch (error) {
-      logger.error('코스 섹션 삭제 실패:', error);
       throw error;
     }
   }

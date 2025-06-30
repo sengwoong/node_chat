@@ -8,7 +8,6 @@ const ChatParticipant = require('./ChatParticipant');
 const Class = require('./Class');
 const OnlineCourse = require('./OnlineCourse');
 const Enrollment = require('./Enrollment');
-const CourseSection = require('./CourseSection');
 
 // 관계 설정
 // User 관계
@@ -37,10 +36,6 @@ Class.hasMany(Enrollment, { foreignKey: 'class_id', as: 'enrollments' });
 // OnlineCourse 관계
 OnlineCourse.belongsTo(User, { foreignKey: 'teacher_id', as: 'teacher' });
 OnlineCourse.hasMany(Enrollment, { foreignKey: 'course_id', as: 'enrollments' });
-OnlineCourse.hasMany(CourseSection, {
-  foreignKey: 'course_id',
-  as: 'sections'
-});
 
 // Enrollment 관계
 Enrollment.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
@@ -77,12 +72,6 @@ ChatRoom.belongsToMany(User, {
   as: 'members' 
 });
 
-// CourseSection 관계
-CourseSection.belongsTo(OnlineCourse, {
-  foreignKey: 'course_id',
-  as: 'course'
-});
-
 // 모델 내보내기
 module.exports = {
   sequelize,
@@ -92,6 +81,5 @@ module.exports = {
   ChatParticipant,
   Class,
   OnlineCourse,
-  Enrollment,
-  CourseSection
+  Enrollment
 }; 
