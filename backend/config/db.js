@@ -15,13 +15,21 @@ async function setupDatabase() {
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,
-      multipleStatements: true
+      multipleStatements: true,
+      charset: 'utf8mb4',
+      collation: 'utf8mb4_unicode_ci',
+      sql_mode: 'TRADITIONAL',
+      timezone: 'local'
     });
     
     logger.info(`데이터베이스 연결 시도 (${config.DB_HOST}:${config.DB_PORT})`);
     
-    // 연결 테스트
     const connection = await pool.getConnection();
+    
+    await connection.execute('SET NAMES utf8mb4');
+    await connection.execute('SET CHARACTER SET utf8mb4');
+    await connection.execute('SET character_set_connection=utf8mb4');
+    
     logger.info('데이터베이스 연결이 설정되었습니다');
     connection.release();
     

@@ -7,9 +7,12 @@ const rateLimit = require('express-rate-limit');
 // 설정 및 유틸리티
 const config = require('./config/env');
 const logger = require('./utils/logger');
-const { setupDatabase, closeDatabase } = require('./config/db');
+const { setupDatabase, closeDatabase } = require('./config/database');
 const { setupKafka, disconnect: disconnectKafka } = require('./config/kafka');
 const { notFound, errorHandler } = require('./middlewares/errorHandler');
+
+// 모델 초기화 (관계 설정 포함)
+require('./models');
 
 // Swagger 설정
 const swagger = require('./config/swagger');
@@ -73,7 +76,7 @@ async function startServer() {
   try {
     logger.info('서버 시작 중...');
     
-    // 데이터베이스 연결
+    // Sequelize 데이터베이스 연결
     await setupDatabase();
     logger.info('데이터베이스 연결 완료');
     
@@ -95,7 +98,7 @@ async function startServer() {
     logger.info('WebRTC 시그널링 서버 설정 완료');
     
     // 서버 시작
-    const PORT = config.PORT;
+    const PORT = config.PORT; // env.js에서 가져온 포트 사용
     server.listen(PORT, () => {
       logger.info(`🚀 서버가 포트 ${PORT}에서 실행 중입니다`);
       logger.info(`📡 API 엔드포인트: http://localhost:${PORT}/api`);

@@ -2,7 +2,7 @@ require('dotenv').config();
 
 module.exports = {
   // 서버 설정
-  PORT: process.env.PORT || 3000,
+  PORT: process.env.PORT || 3001,
   NODE_ENV: process.env.NODE_ENV || 'development',
   
   // 데이터베이스 설정

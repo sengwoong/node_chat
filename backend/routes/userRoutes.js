@@ -3,8 +3,8 @@ const { authenticateToken, authorizeRole } = require('../middlewares/auth');
 const { asyncHandler } = require('../middlewares/errorHandler');
 const logger = require('../utils/logger');
 const constants = require('../config/constants');
-const UserService = require('../services/userService');
-const userService = new UserService();
+const config = require('../config/env');
+const userService = require('../services/userService');
 const router = express.Router();
 
 /**
@@ -19,17 +19,17 @@ const router = express.Router();
  *           example: 1
  *         username:
  *           type: string
- *           example: "student1"
+ *           example: "newuser"
  *         email:
  *           type: string
- *           example: "student1@example.com"
+ *           example: "newuser@example.com"
  *         name:
  *           type: string
  *           example: "박학생"
  *         role:
  *           type: string
  *           enum: [teacher, student, admin]
- *           example: "student"
+ *           example: "teacher"
  *         bio:
  *           type: string
  *           example: "열심히 공부하는 학생입니다."
@@ -62,7 +62,7 @@ const router = express.Router();
  *         role:
  *           type: string
  *           enum: [teacher, student, admin]
- *           default: "student"
+ *           default: "teacher"
  *         bio:
  *           type: string
  *         phone:
@@ -75,7 +75,7 @@ const router = express.Router();
  *       properties:
  *         username:
  *           type: string
- *           example: "student1"
+ *           example: "newuser"
  *         password:
  *           type: string
  *           example: "password123"
@@ -180,11 +180,25 @@ router.post('/login', asyncHandler(async (req, res) => {
     });
   }
   
-  const result = await userService.loginUser({ username, password });
+  const user = await userService.loginUser(username, password);
+  
+  const jwt = require('jsonwebtoken');
+  const token = jwt.sign(
+    { 
+      userId: user.id, 
+      username: user.username, 
+      role: user.role 
+    },
+    config.JWT_SECRET,
+    { expiresIn: config.JWT_EXPIRES_IN }
+  );
   
   res.status(constants.HTTP_STATUS.OK).json({
     success: true,
-    data: result
+    data: {
+      user,
+      token
+    }
   });
 }));
 
@@ -258,24 +272,19 @@ router.post('/login', asyncHandler(async (req, res) => {
  *           application/json:
  *             $ref: '#/components/schemas/Error'
  */
-router.get('/', authenticateToken, authorizeRole(['admin']), async (req, res) => {
-  try {
-    const { page = 1, limit = 10, role, search } = req.query;
-    const result = await userService.getUsers(parseInt(page), parseInt(limit), role, search);
-    
-    res.status(200).json({
-      success: true,
-      data: result.users,
-      pagination: result.pagination
-    });
-  } catch (error) {
-    logger.error('사용자 목록 조회 실패:', error);
-    res.status(500).json({
-      success: false,
-      message: '사용자 목록을 조회하는 중 오류가 발생했습니다.'
-    });
-  }
-});
+router.get('/', authenticateToken, authorizeRole(['admin']), asyncHandler(async (req, res) => {
+  const filters = {
+    role: req.query.role,
+    search: req.query.search
+  };
+  
+  const users = await userService.getUsers(filters);
+  
+  res.status(constants.HTTP_STATUS.OK).json({
+    success: true,
+    data: users
+  });
+}));
 
 /**
  * @swagger
@@ -502,10 +511,9 @@ router.get('/teachers', asyncHandler(async (req, res) => {
  *           application/json:
  *             $ref: '#/components/schemas/Error'
  */
-router.get('/:userId', authenticateToken, asyncHandler(async (req, res) => {
-  const { userId } = req.params;
-  
-  const user = await userService.getUserById(parseInt(userId));
+router.get('/:id', authenticateToken, asyncHandler(async (req, res) => {
+  const userId = req.params.id;
+  const user = await userService.getUserById(userId);
   
   res.status(constants.HTTP_STATUS.OK).json({
     success: true,

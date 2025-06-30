@@ -1,10 +1,11 @@
 const express = require('express');
-const ClassService = require('../services/classService');
+const classService = require('../services/classService');
 const { authenticateToken, authorizeRole } = require('../middlewares/auth');
 const logger = require('../utils/logger');
+const asyncHandler = require('express-async-handler');
 
 const router = express.Router();
-const classService = new ClassService();
+
 
 /**
  * @swagger
@@ -17,24 +18,34 @@ const classService = new ClassService();
  * @swagger
  * components:
  *   schemas:
- *     Class:
+ *     ClassInput:
  *       type: object
  *       properties:
- *         id:
- *           type: integer
- *           description: 클래스 ID
- *         name:
+ *         title:
  *           type: string
- *           description: 클래스 이름
+ *           description: 클래스 제목
  *         description:
  *           type: string
  *           description: 클래스 설명
- *         teacher_id:
- *           type: integer
- *           description: 강사 ID
+ *         subject:
+ *           type: string
+ *           description: 과목
+ *         level:
+ *           type: string
+ *           enum: [beginner, intermediate, advanced]
+ *           description: 난이도
  *         max_students:
  *           type: integer
  *           description: 최대 수강 인원
+ *         price:
+ *           type: number
+ *           description: 수강료
+ *         location:
+ *           type: string
+ *           description: 수업 장소
+ *         schedule:
+ *           type: string
+ *           description: 수업 시간
  *         start_date:
  *           type: string
  *           format: date-time
@@ -43,31 +54,43 @@ const classService = new ClassService();
  *           type: string
  *           format: date-time
  *           description: 종료일
- *         schedule:
- *           type: string
- *           description: "수업 시간 (예: 매주 월,수 19:00-21:00)"
- *         location:
- *           type: string
- *           description: "수업 장소 (예: 서울시 강남구)"
- *         price:
- *           type: integer
- *           description: 수강료
- *         status:
- *           type: string
- *           enum: [pending, active, completed, canceled]
- *           description: "클래스 상태"
+ *       required:
+ *         - title
  *       example:
- *         id: 1
- *         name: "실전! 비즈니스 영어 회화"
+ *         title: "실전! 비즈니스 영어 회화"
  *         description: "비즈니스 상황에서 바로 사용하는 영어 회화 스킬을 배웁니다."
- *         teacher_id: 2
+ *         subject: "영어"
+ *         level: "intermediate"
  *         max_students: 10
+ *         price: 250000
+ *         location: "서울시 강남구"
+ *         schedule: "매주 화,목 20:00-22:00"
  *         start_date: "2024-09-01T10:00:00Z"
  *         end_date: "2024-11-30T12:00:00Z"
- *         schedule: "매주 화,목 20:00-22:00"
- *         location: "온라인 (Zoom)"
- *         price: 250000
- *         status: "active"
+ *     Class:
+ *       allOf:
+ *         - $ref: '#/components/schemas/ClassInput'
+ *         - type: object
+ *           properties:
+ *             id:
+ *               type: integer
+ *               description: 클래스 ID (자동 생성)
+ *             teacher_id:
+ *               type: integer
+ *               description: 강사 ID (토큰에서 자동 설정)
+ *             current_students:
+ *               type: integer
+ *               description: 현재 수강 인원
+ *             status:
+ *               type: string
+ *               enum: [active, inactive, completed, cancelled]
+ *               description: 클래스 상태
+ *             created_at:
+ *               type: string
+ *               format: date-time
+ *             updated_at:
+ *               type: string
+ *               format: date-time
  *     Error:
  *       type: object
  *       properties:
@@ -124,8 +147,18 @@ const classService = new ClassService();
  */
 router.get('/', async (req, res) => {
   try {
-    const { page, limit, status, search } = req.query;
-    const result = await classService.getClasses(page, limit, status, search);
+    const { page, limit, status, search, subject, level, teacher_id } = req.query;
+    const filters = {
+      page: page ? parseInt(page) : 1,
+      limit: limit ? parseInt(limit) : 20,
+      status: status || 'active',
+      search: search ? search.trim() : null,
+      subject: subject ? subject.trim() : null,
+      level: level ? level.trim() : null,
+      teacher_id: teacher_id ? parseInt(teacher_id) : null
+    };
+    
+    const result = await classService.getClasses(filters);
     res.json({ success: true, ...result });
   } catch (error) {
     logger.error('클래스 목록 조회 실패:', error);
@@ -146,31 +179,40 @@ router.get('/', async (req, res) => {
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/Class'
+ *             $ref: '#/components/schemas/ClassInput'
  *     responses:
  *       201:
  *         description: 클래스 생성 성공
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Class'
- *       400:
- *         description: 잘못된 요청
- *       401:
- *         description: 인증 실패
- *       403:
- *         description: 권한 없음
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/Class'
  */
-router.post('/', authenticateToken, authorizeRole(['teacher']), async (req, res) => {
-  try {
-    const classData = { ...req.body, teacher_id: req.user.id };
-    const newClass = await classService.createClass(classData);
-    res.status(201).json({ success: true, data: newClass });
-  } catch (error) {
-    logger.error('클래스 생성 실패:', error);
-    res.status(400).json({ success: false, message: error.message });
-  }
-});
+router.post('/', authenticateToken, authorizeRole(['teacher']), asyncHandler(async (req, res) => {
+  const classData = {
+    ...req.body,
+    teacher_id: req.user.userId // 토큰에서 사용자 ID 가져오기
+  };
+  
+  // 보안상 제거해야 할 필드들
+  delete classData.id; // ID는 자동 생성
+  delete classData.teacher_id_from_body; // 혹시 body에서 온 teacher_id
+  delete classData.current_students; // 초기값은 0
+  delete classData.created_at; // 자동 생성
+  delete classData.updated_at; // 자동 생성
+  
+  const newClass = await classService.createClass(classData);
+  
+  res.status(201).json({
+    success: true,
+    data: newClass
+  });
+}));
 
 /**
  * @swagger
@@ -227,7 +269,7 @@ router.get('/:id', async (req, res) => {
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/Class'
+ *             $ref: '#/components/schemas/ClassInput'
  *     responses:
  *       200:
  *         description: 수정 성공
@@ -245,11 +287,19 @@ router.put('/:id', authenticateToken, authorizeRole(['teacher']), async (req, re
       return res.status(404).json({ success: false, message: '클래스를 찾을 수 없습니다.' });
     }
 
-    if (classToUpdate.teacher_id !== req.user.id) {
+    if (classToUpdate.teacher_id !== req.user.userId) {
       return res.status(403).json({ success: false, message: '수정 권한이 없습니다.' });
     }
 
-    const updatedClass = await classService.updateClass(classId, req.body);
+    // 수정할 수 없는 필드들 제거
+    const updateData = { ...req.body };
+    delete updateData.id; // ID는 변경 불가
+    delete updateData.teacher_id; // 강사 ID는 변경 불가
+    delete updateData.current_students; // 수강생 수는 별도 로직으로 관리
+    delete updateData.created_at; // 생성일은 변경 불가
+    delete updateData.updated_at; // 수정일은 자동 업데이트
+
+    const updatedClass = await classService.updateClass(classId, updateData);
     res.json({ success: true, data: updatedClass });
   } catch (error) {
     logger.error('클래스 수정 실패:', error);
@@ -288,7 +338,8 @@ router.delete('/:id', authenticateToken, authorizeRole(['teacher']), async (req,
       return res.status(404).json({ success: false, message: '클래스를 찾을 수 없습니다.' });
     }
 
-    if (classToDelete.teacher_id !== req.user.id) {
+    // 본인의 클래스인지 확인
+    if (classToDelete.teacher_id !== req.user.userId) { // req.user.id -> req.user.userId
       return res.status(403).json({ success: false, message: '삭제 권한이 없습니다.' });
     }
 

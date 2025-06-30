@@ -1,14 +1,12 @@
 const express = require('express');
-const CourseService = require('../services/courseService');
+const courseService = require('../services/courseService');
 const { authenticateToken, authorizeRole } = require('../middlewares/auth');
 const logger = require('../utils/logger');
 
 const router = express.Router();
-const courseService = new CourseService();
+
 
 const UserService = require('../services/userService');
-const userService = new UserService();
-
 
 /**
  * @swagger

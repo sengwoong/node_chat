@@ -1,5 +1,6 @@
 const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
+const config = require('./env'); // 환경 설정 가져오기
 
 const options = {
   definition: {
@@ -19,7 +20,7 @@ const options = {
     },
     servers: [
       {
-        url: 'http://localhost:3000/api',
+        url: `http://localhost:${config.PORT}/api`, // 동적 포트 설정
         description: '개발 서버'
       },
       {
