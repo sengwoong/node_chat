@@ -148,7 +148,37 @@ const router = express.Router();
  *                       type: integer
  */
 router.get('/available', async (req, res) => {
-  // ... 기존 코드 ...
+  try {
+    const { page = 1, limit = 20, type, subject, level } = req.query;
+    
+    const filters = {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      type,
+      subject,
+      level
+    };
+
+    const result = await enrollmentService.getAvailableItems(filters);
+
+    res.status(200).json({
+      success: true,
+      data: result.items,
+      pagination: {
+        total: result.total,
+        page: result.page,
+        limit: result.limit,
+        totalPages: result.totalPages
+      }
+    });
+  } catch (error) {
+    logger.error('수강신청 가능 목록 조회 실패:', error);
+    res.status(500).json({
+      success: false,
+      message: '수강신청 가능 목록을 조회하는 중 오류가 발생했습니다.',
+      error: error.message
+    });
+  }
 });
 
 /**
@@ -212,7 +242,36 @@ router.get('/available', async (req, res) => {
  *             $ref: '#/components/schemas/Error'
  */
 router.get('/my', authenticateToken, async (req, res) => {
-  // ... 기존 코드 ...
+  try {
+    const { page = 1, limit = 20, status } = req.query;
+    
+    const filters = {
+      user_id: req.user.id,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      status
+    };
+
+    const result = await enrollmentService.getEnrollments(filters);
+
+    res.status(200).json({
+      success: true,
+      data: result.enrollments,
+      pagination: {
+        total: result.total,
+        page: result.page,
+        limit: result.limit,
+        totalPages: result.totalPages
+      }
+    });
+  } catch (error) {
+    logger.error('내 수강신청 목록 조회 실패:', error);
+    res.status(500).json({
+      success: false,
+      message: '수강신청 목록을 조회하는 중 오류가 발생했습니다.',
+      error: error.message
+    });
+  }
 });
 
 /**
@@ -412,81 +471,28 @@ router.delete('/:enrollmentId', authenticateToken, async (req, res) => {
  *             $ref: '#/components/schemas/Error'
  */
 router.get('/my-classes', authenticateToken, async (req, res) => {
-  // ... 기존 코드 ...
-});
-
-/**
- * @swagger
- * /enrollments/my-courses:
- *   get:
- *     summary: 내 코스의 수강신청 목록
- *     description: 강사가 자신의 코스에 대한 수강신청 목록을 조회합니다.
- *     tags: [👨‍🏫 수강신청 - 강사용]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *           default: 1
- *         description: 페이지 번호
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           default: 20
- *         description: 페이지당 항목 수
- *       - in: query
- *         name: status
- *         schema:
- *           type: string
- *           enum: [active, completed, cancelled]
- *         description: 상태 필터
- *       - in: query
- *         name: course_id
- *         schema:
- *           type: integer
- *         description: 특정 코스 필터
- *     responses:
- *       200:
- *         description: 코스 수강신청 목록 조회 성공
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/Enrollment'
- *                 pagination:
- *                   type: object
- *                   properties:
- *                     total:
- *                       type: integer
- *                     page:
- *                       type: integer
- *                     limit:
- *                       type: integer
- *                     totalPages:
- *                       type: integer
- *       401:
- *         description: 인증 실패
- *         content:
- *           application/json:
- *             $ref: '#/components/schemas/Error'
- *       403:
- *         description: 권한 없음 (강사가 아닌 경우)
- *         content:
- *           application/json:
- *             $ref: '#/components/schemas/Error'
- */
-router.get('/my-courses', authenticateToken, async (req, res) => {
-  // ... 기존 코드 ...
+  try {
+    // 즉시 응답하여 라우트가 작동하는지 확인
+    return res.status(200).json({
+      success: true,
+      message: "라우트 테스트 성공!",
+      user: req.user ? { id: req.user.id, role: req.user.role } : null,
+      data: [],
+      pagination: {
+        total: 0,
+        page: 1,
+        limit: 20,
+        totalPages: 0
+      }
+    });
+  } catch (error) {
+    console.error('에러:', error);
+    return res.status(500).json({
+      success: false,
+      message: '오류 발생',
+      error: error.message
+    });
+  }
 });
 
 /**
@@ -543,7 +549,50 @@ router.get('/my-courses', authenticateToken, async (req, res) => {
  *             $ref: '#/components/schemas/Error'
  */
 router.put('/:enrollmentId/approve', authenticateToken, async (req, res) => {
-  // ... 기존 코드 ...
+  try {
+    const { enrollmentId } = req.params;
+    
+    // 강사 권한 확인
+    if (req.user.role !== 'teacher') {
+      return res.status(403).json({
+        success: false,
+        message: '강사만 접근할 수 있습니다.'
+      });
+    }
+
+    // 수강신청 정보 조회 및 권한 확인
+    const enrollment = await enrollmentService.getEnrollmentById(enrollmentId);
+    
+    // 강사가 자신의 클래스/코스인지 확인
+    const isOwner = (enrollment.class && enrollment.class.teacher_id === req.user.id) ||
+                   (enrollment.course && enrollment.course.teacher_id === req.user.id);
+    
+    if (!isOwner) {
+      return res.status(403).json({
+        success: false,
+        message: '자신의 클래스/코스에 대한 수강신청만 승인할 수 있습니다.'
+      });
+    }
+
+    // 수강신청 승인 (상태를 active로 변경)
+    const updatedEnrollment = await enrollmentService.updateEnrollmentStatus(
+      enrollmentId, 
+      'active'
+    );
+
+    res.status(200).json({
+      success: true,
+      data: updatedEnrollment,
+      message: '수강신청이 승인되었습니다.'
+    });
+  } catch (error) {
+    logger.error('수강신청 승인 실패:', error);
+    res.status(500).json({
+      success: false,
+      message: '수강신청 승인 중 오류가 발생했습니다.',
+      error: error.message
+    });
+  }
 });
 
 /**
@@ -610,7 +659,56 @@ router.put('/:enrollmentId/approve', authenticateToken, async (req, res) => {
  *             $ref: '#/components/schemas/Error'
  */
 router.put('/:enrollmentId/reject', authenticateToken, async (req, res) => {
-  // ... 기존 코드 ...
+  try {
+    const { enrollmentId } = req.params;
+    const { reason } = req.body;
+    
+    // 강사 권한 확인
+    if (req.user.role !== 'teacher') {
+      return res.status(403).json({
+        success: false,
+        message: '강사만 접근할 수 있습니다.'
+      });
+    }
+
+    // 수강신청 정보 조회 및 권한 확인
+    const enrollment = await enrollmentService.getEnrollmentById(enrollmentId);
+    
+    // 강사가 자신의 클래스/코스인지 확인
+    const isOwner = (enrollment.class && enrollment.class.teacher_id === req.user.id) ||
+                   (enrollment.course && enrollment.course.teacher_id === req.user.id);
+    
+    if (!isOwner) {
+      return res.status(403).json({
+        success: false,
+        message: '자신의 클래스/코스에 대한 수강신청만 거부할 수 있습니다.'
+      });
+    }
+
+    // 수강신청 거부 (상태를 cancelled로 변경)
+    const updatedEnrollment = await enrollmentService.updateEnrollmentStatus(
+      enrollmentId, 
+      'cancelled'
+    );
+
+    // 거부 사유가 있다면 로그에 기록
+    if (reason) {
+      logger.info(`수강신청 거부 - ID: ${enrollmentId}, 사유: ${reason}`);
+    }
+
+    res.status(200).json({
+      success: true,
+      data: updatedEnrollment,
+      message: '수강신청이 거부되었습니다.'
+    });
+  } catch (error) {
+    logger.error('수강신청 거부 실패:', error);
+    res.status(500).json({
+      success: false,
+      message: '수강신청 거부 중 오류가 발생했습니다.',
+      error: error.message
+    });
+  }
 });
 
 /**
@@ -776,7 +874,28 @@ router.get('/all', authenticateToken, async (req, res) => {
  *             $ref: '#/components/schemas/Error'
  */
 router.get('/stats', authenticateToken, async (req, res) => {
-  // ... 기존 코드 ...
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: '관리자만 접근할 수 있습니다.'
+      });
+    }
+
+    const result = await enrollmentService.getEnrollmentStats();
+
+    res.status(200).json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    logger.error('수강신청 통계 조회 실패:', error);
+    res.status(500).json({
+      success: false,
+      message: '수강신청 통계를 조회하는 중 오류가 발생했습니다.',
+      error: error.message
+    });
+  }
 });
 
 module.exports = router; 

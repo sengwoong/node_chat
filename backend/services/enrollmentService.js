@@ -306,6 +306,141 @@ class EnrollmentService {
       throw error;
     }
   }
+
+  /**
+   * 수강신청 가능한 항목들 조회 (클래스 + 코스)
+   */
+  async getAvailableItems(filters = {}) {
+    try {
+      const { page = 1, limit = 20, type, subject, level } = filters;
+      const offset = (page - 1) * limit;
+      
+      let items = [];
+      let total = 0;
+      
+      if (!type || type === 'class') {
+        // 활성 클래스 조회
+        const classes = await Class.findAll({
+          where: {
+            status: 'active',
+            ...(subject && { subject }),
+            ...(level && { level })
+          },
+          include: [{
+            model: User,
+            as: 'teacher',
+            attributes: ['id', 'name', 'username']
+          }],
+          attributes: ['id', 'title', 'description', 'subject', 'level', 'price', 'location', 'schedule']
+        });
+        
+        items = items.concat(classes.map(cls => ({
+          ...cls.toJSON(),
+          type: 'class'
+        })));
+      }
+      
+      if (!type || type === 'course') {
+        // 발행된 온라인 코스 조회
+        const courses = await OnlineCourse.findAll({
+          where: {
+            status: 'published',
+            ...(subject && { subject }),
+            ...(level && { level })
+          },
+          include: [{
+            model: User,
+            as: 'teacher',
+            attributes: ['id', 'name', 'username']
+          }],
+          attributes: ['id', 'title', 'description', 'subject', 'level', 'price', 'duration', 'thumbnail_url']
+        });
+        
+        items = items.concat(courses.map(course => ({
+          ...course.toJSON(),
+          type: 'course'
+        })));
+      }
+      
+      // 페이지네이션 적용
+      total = items.length;
+      items = items.slice(offset, offset + limit);
+      
+      return {
+        items,
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(total / limit)
+      };
+    } catch (error) {
+      logger.error('수강신청 가능 항목 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 강사별 수강신청 목록 조회
+   */
+  async getEnrollmentsByTeacher(teacherId, type, filters = {}) {
+    try {
+      const { page = 1, limit = 20, status, class_id, course_id } = filters;
+      const offset = (page - 1) * limit;
+      
+      const whereClause = {
+        status: status || { [Op.ne]: 'cancelled' }
+      };
+      
+      const includeClause = [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'name', 'username', 'email']
+        }
+      ];
+      
+      if (type === 'class') {
+        whereClause.class_id = { [Op.ne]: null };
+        if (class_id) whereClause.class_id = class_id;
+        
+        includeClause.push({
+          model: Class,
+          as: 'class',
+          where: { teacher_id: teacherId },
+          attributes: ['id', 'title', 'subject', 'level']
+        });
+      } else if (type === 'course') {
+        whereClause.course_id = { [Op.ne]: null };
+        if (course_id) whereClause.course_id = course_id;
+        
+        includeClause.push({
+          model: OnlineCourse,
+          as: 'course',
+          where: { teacher_id: teacherId },
+          attributes: ['id', 'title', 'subject', 'level']
+        });
+      }
+      
+      const { count, rows } = await Enrollment.findAndCountAll({
+        where: whereClause,
+        include: includeClause,
+        order: [['enrolled_at', 'DESC']],
+        limit: parseInt(limit),
+        offset: parseInt(offset)
+      });
+      
+      return {
+        enrollments: rows,
+        total: count,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(count / limit)
+      };
+    } catch (error) {
+      logger.error('강사별 수강신청 목록 조회 실패:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = new EnrollmentService(); 
