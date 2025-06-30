@@ -246,7 +246,7 @@ router.get('/my', authenticateToken, async (req, res) => {
     const { page = 1, limit = 20, status } = req.query;
     
     const filters = {
-      user_id: req.user.id,
+      user_id: req. user.userId,
       page: parseInt(page),
       limit: parseInt(limit),
       status
@@ -335,7 +335,117 @@ router.get('/my', authenticateToken, async (req, res) => {
  *             $ref: '#/components/schemas/Error'
  */
 router.post('/', authenticateToken, async (req, res) => {
-  // ... 기존 코드 ...
+  try {
+    const { enrollment_type, class_id, course_id } = req.body;
+    
+    // 학생 권한 확인
+    if (req.user.role !== 'student') {
+      return res.status(403).json({
+        success: false,
+        message: '학생만 수강신청할 수 있습니다.'
+      });
+    }
+
+    // 필수 필드 검증
+    if (!enrollment_type) {
+      return res.status(400).json({
+        success: false,
+        message: 'enrollment_type은 필수입니다.'
+      });
+    }
+
+    // enrollment_type 유효성 검증
+    if (!['class', 'course'].includes(enrollment_type)) {
+      return res.status(400).json({
+        success: false,
+        message: 'enrollment_type은 class 또는 course여야 합니다.'
+      });
+    }
+
+    // class 타입 검증
+    if (enrollment_type === 'class') {
+      if (!class_id) {
+        return res.status(400).json({
+          success: false,
+          message: 'class 타입의 경우 class_id가 필요합니다.'
+        });
+      }
+      if (course_id) {
+        return res.status(400).json({
+          success: false,
+          message: 'class 타입의 경우 course_id는 필요하지 않습니다.'
+        });
+      }
+    }
+
+    // course 타입 검증
+    if (enrollment_type === 'course') {
+      if (!course_id) {
+        return res.status(400).json({
+          success: false,
+          message: 'course 타입의 경우 course_id가 필요합니다.'
+        });
+      }
+      if (class_id) {
+        return res.status(400).json({
+          success: false,
+          message: 'course 타입의 경우 class_id는 필요하지 않습니다.'
+        });
+      }
+    }
+
+    // 수강신청 데이터 구성
+    const enrollmentData = {
+      user_id: req. user.userId,
+      enrollment_type,
+      class_id: enrollment_type === 'class' ? parseInt(class_id) : null,
+      course_id: enrollment_type === 'course' ? parseInt(course_id) : null,
+      status: 'active',
+      enrolled_at: new Date()
+    };
+
+    // 수강신청 생성
+    const enrollment = await enrollmentService.createEnrollment(enrollmentData);
+
+    res.status(201).json({
+      success: true,
+      data: enrollment,
+      message: '수강신청이 완료되었습니다.'
+    });
+
+  } catch (error) {
+    logger.error('수강신청 생성 실패:', error);
+    
+    // 중복 수강신청 에러 처리
+    if (error.message && error.message.includes('이미 수강신청')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+    
+    // 존재하지 않는 클래스/코스 에러 처리
+    if (error.message && error.message.includes('존재하지 않는')) {
+      return res.status(404).json({
+        success: false,
+        message: error.message
+      });
+    }
+    
+    // 정원 초과 에러 처리
+    if (error.message && error.message.includes('정원')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    // 기타 에러
+    res.status(500).json({
+      success: false,
+      message: error.message || '수강신청 중 오류가 발생했습니다.'
+    });
+  }
 });
 
 /**
@@ -476,7 +586,9 @@ router.get('/my-classes', authenticateToken, async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "라우트 테스트 성공!",
-      user: req.user ? { id: req.user.id, role: req.user.role } : null,
+    
+
+      user: req.user ? { id: req.user.userId, role: req.user.role } : null,
       data: [],
       pagination: {
         total: 0,
@@ -564,8 +676,8 @@ router.put('/:enrollmentId/approve', authenticateToken, async (req, res) => {
     const enrollment = await enrollmentService.getEnrollmentById(enrollmentId);
     
     // 강사가 자신의 클래스/코스인지 확인
-    const isOwner = (enrollment.class && enrollment.class.teacher_id === req.user.id) ||
-                   (enrollment.course && enrollment.course.teacher_id === req.user.id);
+    const isOwner = (enrollment.class && enrollment.class.teacher_id === req. user.userId) ||
+                   (enrollment.course && enrollment.course.teacher_id === req. user.userId);
     
     if (!isOwner) {
       return res.status(403).json({
@@ -675,8 +787,8 @@ router.put('/:enrollmentId/reject', authenticateToken, async (req, res) => {
     const enrollment = await enrollmentService.getEnrollmentById(enrollmentId);
     
     // 강사가 자신의 클래스/코스인지 확인
-    const isOwner = (enrollment.class && enrollment.class.teacher_id === req.user.id) ||
-                   (enrollment.course && enrollment.course.teacher_id === req.user.id);
+    const isOwner = (enrollment.class && enrollment.class.teacher_id === req. user.userId) ||
+                   (enrollment.course && enrollment.course.teacher_id === req. user.userId);
     
     if (!isOwner) {
       return res.status(403).json({
