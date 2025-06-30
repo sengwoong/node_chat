@@ -315,7 +315,7 @@ router.get('/', authenticateToken, authorizeRole(['admin']), asyncHandler(async 
  *             $ref: '#/components/schemas/Error'
  */
 router.get('/profile', authenticateToken, asyncHandler(async (req, res) => {
-  const userId = req.user.id;
+  const userId = req.user.userId;
   
   const userProfile = await userService.getUserProfile(userId);
   
@@ -369,7 +369,7 @@ router.get('/profile', authenticateToken, asyncHandler(async (req, res) => {
  *             $ref: '#/components/schemas/Error'
  */
 router.put('/profile', authenticateToken, asyncHandler(async (req, res) => {
-  const userId = req.user.id;
+  const userId = req.user.userId;
   const updateData = req.body;
   
   const updatedUser = await userService.updateUser(userId, updateData);

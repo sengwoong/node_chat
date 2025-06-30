@@ -39,7 +39,7 @@ const authorizeRole = (roles) => {
     }
 
     if (!roles.includes(req.user.role)) {
-      logger.warn(`권한 부족: 사용자 ${req.user.id}가 ${roles} 역할이 필요한 작업을 시도`);
+      logger.warn(`권한 부족: 사용자 ${req.user.userId}가 ${roles} 역할이 필요한 작업을 시도`);
       return res.status(constants.HTTP_STATUS.FORBIDDEN).json({
         success: false,
         message: '이 작업을 수행할 권한이 없습니다'

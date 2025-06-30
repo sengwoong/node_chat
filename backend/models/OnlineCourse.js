@@ -65,6 +65,7 @@ const OnlineCourse = sequelize.define('OnlineCourse', {
   }
 }, {
   tableName: 'online_courses',
+  timestamps: false,
   indexes: [
     { fields: ['teacher_id'] },
     { fields: ['subject'] },

@@ -12,23 +12,27 @@ const UserService = require('../services/userService');
  * @swagger
  * components:
  *   schemas:
- *     Course:
+ *     CourseInput:
  *       type: object
+ *       required:
+ *         - title
+ *         - description
+ *         - subject
+ *         - price
+ *         - duration
+ *         - level
  *       properties:
- *         id:
- *           type: integer
- *           example: 1
  *         title:
  *           type: string
  *           example: "React 완전 정복"
  *         description:
  *           type: string
  *           example: "React의 모든 것을 배우는 온라인 강의"
- *         teacher_id:
- *           type: integer
- *           example: 1
+ *         subject:
+ *           type: string
+ *           example: "프로그래밍"
  *         price:
- *           type: integer
+ *           type: number
  *           example: 150000
  *         duration:
  *           type: integer
@@ -37,22 +41,42 @@ const UserService = require('../services/userService');
  *           type: string
  *           enum: [beginner, intermediate, advanced]
  *           example: "intermediate"
- *         category:
- *           type: string
- *           example: "프로그래밍"
  *         thumbnail_url:
  *           type: string
  *           example: "https://example.com/thumbnail.jpg"
- *         status:
+ *         video_url:
  *           type: string
- *           enum: [draft, published, archived]
- *           example: "published"
- *         created_at:
+ *           example: "https://example.com/video.mp4"
+ *         preview_url:
  *           type: string
- *           format: date-time
- *         updated_at:
- *           type: string
- *           format: date-time
+ *           example: "https://example.com/preview.mp4"
+ *     Course:
+ *       allOf:
+ *         - $ref: '#/components/schemas/CourseInput'
+ *         - type: object
+ *           properties:
+ *             id:
+ *               type: integer
+ *               description: 코스 ID (자동 생성)
+ *             teacher_id:
+ *               type: integer
+ *               description: 강사 ID (토큰에서 자동 설정)
+ *             status:
+ *               type: string
+ *               enum: [draft, published, archived]
+ *               description: 코스 상태
+ *             view_count:
+ *               type: integer
+ *               description: 조회수
+ *             rating:
+ *               type: number
+ *               description: 평점
+ *             created_at:
+ *               type: string
+ *               format: date-time
+ *             updated_at:
+ *               type: string
+ *               format: date-time
  *     CourseSection:
  *       type: object
  *       properties:
@@ -115,10 +139,10 @@ const UserService = require('../services/userService');
  *           enum: [beginner, intermediate, advanced]
  *         description: 난이도 필터
  *       - in: query
- *         name: category
+ *         name: subject
  *         schema:
  *           type: string
- *         description: 카테고리 필터
+ *         description: 과목 필터
  *       - in: query
  *         name: search
  *         schema:
@@ -153,8 +177,8 @@ const UserService = require('../services/userService');
  */
 router.get('/', async (req, res) => {
   try {
-    const { page = 1, limit = 10, status, level, category, search } = req.query;
-    const result = await courseService.getCourses(parseInt(page), parseInt(limit), status, level, category, search);
+    const { page = 1, limit = 10, status, level, subject, search } = req.query;
+    const result = await courseService.getCourses(parseInt(page), parseInt(limit), status, level, subject, search);
     
     res.status(200).json({
       success: true,
@@ -184,37 +208,7 @@ router.get('/', async (req, res) => {
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - title
- *               - description
- *               - price
- *               - duration
- *               - level
- *               - category
- *             properties:
- *               title:
- *                 type: string
- *                 example: "React 완전 정복"
- *               description:
- *                 type: string
- *                 example: "React의 모든 것을 배우는 온라인 강의"
- *               price:
- *                 type: integer
- *                 example: 150000
- *               duration:
- *                 type: integer
- *                 example: 120
- *               level:
- *                 type: string
- *                 enum: [beginner, intermediate, advanced]
- *                 example: "intermediate"
- *               category:
- *                 type: string
- *                 example: "프로그래밍"
- *               thumbnail_url:
- *                 type: string
- *                 example: "https://example.com/thumbnail.jpg"
+ *             $ref: '#/components/schemas/CourseInput'
  *     responses:
  *       201:
  *         description: 코스 생성 성공
@@ -248,8 +242,12 @@ router.post('/', authenticateToken, authorizeRole(['teacher']), async (req, res)
   try {
     const courseData = {
       ...req.body,
-      teacher_id: req.user.id
+      teacher_id: req.user.userId
     };
+    
+    delete courseData.id;
+    delete courseData.created_at;
+    delete courseData.updated_at;
     
     const newCourse = await courseService.createCourse(courseData);
     
@@ -358,7 +356,7 @@ router.get('/:courseId', async (req, res) => {
  *               level:
  *                 type: string
  *                 enum: [beginner, intermediate, advanced]
- *               category:
+ *               subject:
  *                 type: string
  *               thumbnail_url:
  *                 type: string
@@ -401,14 +399,33 @@ router.put('/:courseId', authenticateToken, async (req, res) => {
       });
     }
     
-    if (courseData.teacher_id !== req.user.id) {
+    logger.info('코스 수정 권한 확인:', {
+      courseId: courseId,
+      courseTeacherId: courseData.teacher_id,
+      courseTeacherIdType: typeof courseData.teacher_id,
+      tokenUserId: req.user.userId,
+      tokenUserIdType: typeof req.user.userId,
+      tokenUser: req.user
+    });
+    
+    if (parseInt(courseData.teacher_id) !== parseInt(req.user.userId)) {
       return res.status(403).json({
         success: false,
-        message: '코스를 수정할 권한이 없습니다.'
+        message: '코스를 수정할 권한이 없습니다.',
+        debug: {
+          courseTeacherId: courseData.teacher_id,
+          tokenUserId: req.user.userId
+        }
       });
     }
     
-    const updatedCourse = await courseService.updateCourse(courseId, req.body);
+    const updateData = { ...req.body };
+    delete updateData.id;
+    delete updateData.teacher_id;
+    delete updateData.created_at;
+    delete updateData.updated_at;
+    
+    const updatedCourse = await courseService.updateCourse(courseId, updateData);
     
     res.status(200).json({
       success: true,
@@ -556,7 +573,7 @@ router.post('/:courseId/sections', authenticateToken, async (req, res) => {
       });
     }
     
-    if (courseData.teacher_id !== req.user.id) {
+    if (courseData.teacher_id !== req.user.userId) {
       return res.status(403).json({
         success: false,
         message: '섹션을 추가할 권한이 없습니다.'
@@ -567,6 +584,9 @@ router.post('/:courseId/sections', authenticateToken, async (req, res) => {
       ...req.body,
       course_id: courseId
     };
+    
+    delete sectionData.id;
+    delete sectionData.created_at;
     
     const newSection = await courseService.addCourseSection(sectionData);
     
@@ -652,6 +672,311 @@ router.get('/teacher/:teacherId', async (req, res) => {
     res.status(500).json({
       success: false,
       message: '강사별 코스 목록을 조회하는 중 오류가 발생했습니다.'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /courses/{courseId}/sections/{sectionId}:
+ *   get:
+ *     summary: 코스 섹션 상세 조회
+ *     description: 코스의 특정 섹션 정보를 조회합니다.
+ *     tags: [Courses]
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: 코스 ID
+ *       - in: path
+ *         name: sectionId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: 섹션 ID
+ *     responses:
+ *       200:
+ *         description: 섹션 조회 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/CourseSection'
+ *       404:
+ *         description: 코스 또는 섹션을 찾을 수 없음
+ *         content:
+ *           application/json:
+ *             $ref: '#/components/schemas/Error'
+ */
+router.get('/:courseId/sections/:sectionId', async (req, res) => {
+  try {
+    const courseId = parseInt(req.params.courseId);
+    const sectionId = parseInt(req.params.sectionId);
+    
+    // 코스 존재 여부 확인
+    const courseData = await courseService.getCourseById(courseId);
+    
+    if (!courseData) {
+      return res.status(404).json({
+        success: false,
+        message: '코스를 찾을 수 없습니다.'
+      });
+    }
+    
+    // 섹션 조회
+    const sections = await courseService.getCourseSections(courseId);
+    const section = sections.find(s => s.id === sectionId);
+    
+    if (!section) {
+      return res.status(404).json({
+        success: false,
+        message: '해당 코스에서 섹션을 찾을 수 없습니다.'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: section
+    });
+  } catch (error) {
+    logger.error('코스 섹션 조회 실패:', error);
+    res.status(500).json({
+      success: false,
+      message: '섹션을 조회하는 중 오류가 발생했습니다.'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /courses/{courseId}/sections/{sectionId}:
+ *   delete:
+ *     summary: 코스 섹션 삭제
+ *     description: 코스의 특정 섹션을 삭제합니다. (코스 생성자만 가능)
+ *     tags: [Courses]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: 코스 ID
+ *       - in: path
+ *         name: sectionId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: 섹션 ID
+ *     responses:
+ *       200:
+ *         description: 섹션 삭제 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "섹션이 성공적으로 삭제되었습니다."
+ *       403:
+ *         description: 권한 없음
+ *         content:
+ *           application/json:
+ *             $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: 코스 또는 섹션을 찾을 수 없음
+ *         content:
+ *           application/json:
+ *             $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 서버 오류
+ *         content:
+ *           application/json:
+ *             $ref: '#/components/schemas/Error'
+ */
+router.delete('/:courseId/sections/:sectionId', authenticateToken, async (req, res) => {
+  try {
+    const courseId = parseInt(req.params.courseId);
+    const sectionId = parseInt(req.params.sectionId);
+    
+    // 코스 존재 여부 및 권한 확인
+    const courseData = await courseService.getCourseById(courseId);
+    
+    if (!courseData) {
+      return res.status(404).json({
+        success: false,
+        message: '코스를 찾을 수 없습니다.'
+      });
+    }
+    
+    // 코스 생성자인지 확인
+    if (courseData.teacher_id !== req.user.userId) {
+      return res.status(403).json({
+        success: false,
+        message: '섹션을 삭제할 권한이 없습니다.'
+      });
+    }
+    
+    // 섹션이 해당 코스에 속하는지 확인
+    const sections = await courseService.getCourseSections(courseId);
+    const sectionExists = sections.some(section => section.id === sectionId);
+    
+    if (!sectionExists) {
+      return res.status(404).json({
+        success: false,
+        message: '해당 코스에서 섹션을 찾을 수 없습니다.'
+      });
+    }
+    
+    // 섹션 삭제
+    await courseService.deleteCourseSection(sectionId);
+    
+    res.status(200).json({
+      success: true,
+      message: '섹션이 성공적으로 삭제되었습니다.'
+    });
+  } catch (error) {
+    logger.error('코스 섹션 삭제 실패:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || '섹션을 삭제하는 중 오류가 발생했습니다.'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /courses/{courseId}/sections/{sectionId}:
+ *   put:
+ *     summary: 코스 섹션 수정
+ *     description: 코스의 특정 섹션을 수정합니다. (코스 생성자만 가능)
+ *     tags: [Courses]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: 코스 ID
+ *       - in: path
+ *         name: sectionId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: 섹션 ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *                 example: "React 기초 - 수정됨"
+ *               description:
+ *                 type: string
+ *                 example: "React의 기본 개념을 자세히 배웁니다"
+ *               order_index:
+ *                 type: integer
+ *                 example: 2
+ *               video_url:
+ *                 type: string
+ *                 example: "https://example.com/updated-video.mp4"
+ *               duration:
+ *                 type: integer
+ *                 example: 45
+ *     responses:
+ *       200:
+ *         description: 섹션 수정 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/CourseSection'
+ *       403:
+ *         description: 권한 없음
+ *         content:
+ *           application/json:
+ *             $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: 코스 또는 섹션을 찾을 수 없음
+ *         content:
+ *           application/json:
+ *             $ref: '#/components/schemas/Error'
+ */
+router.put('/:courseId/sections/:sectionId', authenticateToken, async (req, res) => {
+  try {
+    const courseId = parseInt(req.params.courseId);
+    const sectionId = parseInt(req.params.sectionId);
+    
+    // 코스 존재 여부 및 권한 확인
+    const courseData = await courseService.getCourseById(courseId);
+    
+    if (!courseData) {
+      return res.status(404).json({
+        success: false,
+        message: '코스를 찾을 수 없습니다.'
+      });
+    }
+    
+    // 코스 생성자인지 확인
+    if (courseData.teacher_id !== req.user.userId) {
+      return res.status(403).json({
+        success: false,
+        message: '섹션을 수정할 권한이 없습니다.'
+      });
+    }
+    
+    // 섹션이 해당 코스에 속하는지 확인
+    const sections = await courseService.getCourseSections(courseId);
+    const sectionExists = sections.some(section => section.id === sectionId);
+    
+    if (!sectionExists) {
+      return res.status(404).json({
+        success: false,
+        message: '해당 코스에서 섹션을 찾을 수 없습니다.'
+      });
+    }
+    
+    // 수정할 데이터 준비
+    const updateData = { ...req.body };
+    delete updateData.id;
+    delete updateData.course_id;
+    delete updateData.created_at;
+    delete updateData.updated_at;
+    
+    // 섹션 수정
+    const updatedSection = await courseService.updateCourseSection(sectionId, updateData);
+    
+    res.status(200).json({
+      success: true,
+      data: updatedSection
+    });
+  } catch (error) {
+    logger.error('코스 섹션 수정 실패:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message || '섹션을 수정하는 중 오류가 발생했습니다.'
     });
   }
 });
